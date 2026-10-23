@@ -16,12 +16,17 @@ def login():
             session['username'] = user.username
             session['real_name'] = user.real_name
             session['role'] = user.role
-            session['permissions'] = user.permissions.split(',') if user.permissions else []
+            
+            # قراءة الصلاحيات بتنسيق dict
+            try:
+                session['permissions'] = json.loads(user.permissions) if user.permissions else {}
+            except:
+                session['permissions'] = {}
 
             user.last_active = get_egypt_time()
             db.session.commit()
 
-            return redirect(url_for('dashboard.index')) # تم التعديل
+            return redirect(url_for('dashboard.index'))
         else:
             return render_template('auth/login.html', error="اسم المستخدم أو كلمة المرور غير صحيحة")
 

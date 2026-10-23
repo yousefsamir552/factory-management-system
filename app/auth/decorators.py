@@ -1,7 +1,7 @@
 from functools import wraps
-from flask import session, redirect, url_for
+from flask import session, redirect, url_for, flash
 
-def require_permission(perm_name):
+def require_permission(section_name, require_edit=False):
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
@@ -10,17 +10,27 @@ def require_permission(perm_name):
 
             role = session.get('role')
 
+            # الـ Sudo له كامل الصلاحيات
             if role == 'sudo':
                 return f(*args, **kwargs)
 
+            # الـ Owner للمشاهدة فقط في كل الأقسام
             if role == 'owner':
-                if 'edit' in perm_name or 'add' in perm_name or 'delete' in perm_name:
+                if require_edit:
                     return "عفواً، حساب المالك مخصص للمشاهدة والتقارير فقط.", 403
                 return f(*args, **kwargs)
 
-            user_perms = session.get('permissions', [])
-            if perm_name not in user_perms:
-                return "عفواً، لا تملك الصلاحية الكافية للوصول لهذه الصفحة.", 403
+            # الموظفين Staff
+            user_perms = session.get('permissions', {})
+            # permissions تكون dictionary مثل: {'warehouse': 'edit', 'design': 'view'}
+            
+            section_perm = user_perms.get(section_name)
+
+            if not section_perm:
+                return "عفواً، لا تملك الصلاحية للوصول لهذا القسم.", 403
+
+            if require_edit and section_perm != 'edit':
+                return "عفواً، تملك صلاحية المشاهدة فقط لهذا القسم ولا يمكنك التعديل أو الإضافة.", 403
 
             return f(*args, **kwargs)
         return decorator
