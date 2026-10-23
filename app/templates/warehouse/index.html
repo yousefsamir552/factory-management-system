@@ -62,7 +62,7 @@
 <div class="colors-grid">
     {% for color in selected_fabric.colors %}
     <div class="color-card">
-        <div class="color-box" style="background-color: {{ color.hex_code if color.hex_code else '#f5f5f7' }};"></div>
+        <div class="color-box" style="background-color: {{ color.hex_code if color.hex_code else '#f5f5f7' }}; cursor: pointer;" onclick="navigator.clipboard.writeText('{{ color.hex_code }}').then(() => alert('تم نسخ الكود: {{ color.hex_code }}'));" title="اضغط لنسخ كود اللون"></div>
         <div class="color-details">
             <h4 style="margin: 0 0 8px 0; color: #1d1d1f;">{{ color.color_code }} <span style="font-weight: normal; color: #86868b;">{{ color.color_name or '' }}</span></h4>
             <div style="font-size: 22px; font-weight: 700; margin-bottom: 4px;">{{ color.quantity }} <span style="font-size: 13px; color: #86868b;">{{ selected_fabric.unit }}</span></div>
@@ -89,6 +89,12 @@
             <!-- القسم السفلي يظهر فقط عند اختيار "خامة جديدة" -->
             <div id="newFabricFields" style="display: none; background: #f5f5f7; padding: 16px; border-radius: 12px; margin-bottom: 16px;">
                 <input type="text" name="new_fabric_name" class="form-input" placeholder="اسم الخامة الجديدة">
+                <select name="supplier_id" class="form-input">
+                    <option value="">-- اختر المورد (اختياري) --</option>
+                    {% for s in suppliers %}
+                        <option value="{{ s.id }}">{{ s.name }}</option>
+                    {% endfor %}
+                </select>
                 <select name="unit" class="form-input">
                     <option value="توب">توب</option>
                     <option value="كيلو">كيلو</option>
@@ -98,9 +104,10 @@
                 <input type="file" name="fabric_image" accept="image/*" class="form-input">
             </div>
 
-            <div style="display: flex; gap: 12px;">
+            <div style="display: flex; gap: 12px; align-items: center;">
                 <input type="text" name="color_code" class="form-input" placeholder="كود اللون (إجباري)" required>
                 <input type="text" name="color_name" class="form-input" placeholder="اسم اللون">
+                <input type="color" name="hex_code" style="width: 50px; height: 40px; border: none; cursor: pointer;" title="اختر اللون">
             </div>
             <input type="number" step="0.01" name="quantity" class="form-input" required placeholder="الكمية المستلمة">
             
@@ -122,6 +129,8 @@
                 <option value="deduct">صرف للمقص / استعواض (-)</option>
                 <option value="add">إضافة / مرتجع (+)</option>
             </select>
+            <!-- فوق حقل الكمية -->
+            <input type="text" name="model_code_ref" class="form-input" placeholder="كود الموديل (لأي موديل رايح/جاي؟)">
             <input type="number" step="0.01" name="amount" class="form-input" required placeholder="الكمية">
             <input type="text" name="notes" class="form-input" placeholder="ملاحظات / السبب">
             

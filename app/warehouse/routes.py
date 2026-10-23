@@ -2,6 +2,7 @@ import os
 from flask import Blueprint, render_template, request, redirect, url_for, current_app
 from werkzeug.utils import secure_filename
 from app.models import db, Fabric, FabricColor, FabricTransaction, Supplier
+from app.models import log_action
 
 warehouse_bp = Blueprint('warehouse', __name__, url_prefix='/warehouse')
 
@@ -43,6 +44,7 @@ def add_fabric():
             os.makedirs(upload_dir, exist_ok=True)
             file.save(os.path.join(upload_dir, filename))
             fabric.image_url = f'/static/uploads/{filename}'
+        
 
         db.session.commit()
     else:
@@ -77,6 +79,8 @@ def add_fabric():
     else:
         color = FabricColor(fabric_id=fabric.id, color_code=color_code, color_name=color_name, hex_code=hex_code, price_per_unit=price, quantity=quantity)
         db.session.add(color)
+
+    log_action("المخزن", f"حركة اضافه للخامات {color_code} للون {color_name} هيكس كود {hex_code}")
 
     db.session.commit()
     return redirect(url_for('warehouse.index', fabric_id=fabric.id))
@@ -118,6 +122,7 @@ def transaction():
                 return redirect(url_for('warehouse.index', fabric_id=color.fabric_id))
         trans = FabricTransaction(color_id=color.id, operation=operation, amount=amount, model_code_ref=model_code_ref, notes=notes)
         db.session.add(trans)
+        log_action("المخزن", f"حركة {operation} لكمية {amount} للون {color.color_code} موديل {model_code_ref}")
         db.session.commit()
         return redirect(url_for('warehouse.index', fabric_id=color.fabric_id))
     return redirect(url_for('warehouse.index'))

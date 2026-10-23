@@ -1,0 +1,2030 @@
+
+
+==================================================
+File: ./run.py
+==================================================
+
+from app import create_app
+from app.models import db
+
+app = create_app()
+
+with app.app_context():
+    db.create_all()
+
+if __name__ == '__main__':
+    # تغيير المنفذ إلى 5001 لتجنب تعارض نظام الماك
+    app.run(debug=True, port=5001)
+
+==================================================
+File: ./config.py
+==================================================
+
+import os
+
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+
+class Config:
+    # مفتاح الأمان (تم إعداده ليكون آمناً أو يعتمد على البيئة)
+    SECRET_KEY = os.environ.get('SECRET_KEY') or 'super-secret-key-change-it-later'
+    # مسار قاعدة البيانات المحلي
+    SQLALCHEMY_DATABASE_URI = 'sqlite:///' + os.path.join(BASE_DIR, 'factory.db')
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+
+==================================================
+File: ./combine.py
+==================================================
+
+import os
+
+output_file = 'all_code.txt'
+# تجاهل المجلدات التي لا تحتوي على أكواد الموقع
+skip_dirs = {'venv', '.venv', '__pycache__', 'uploads', 'images'}
+valid_extensions = {'.py', '.html', '.css', '.js'}
+
+with open(output_file, 'w', encoding='utf-8') as outfile:
+    for root, dirs, files in os.walk('.'):
+        dirs[:] = [d for d in dirs if d not in skip_dirs]
+        for file in files:
+            if any(file.endswith(ext) for ext in valid_extensions):
+                filepath = os.path.join(root, file)
+                outfile.write(f"\n\n{'='*50}\n")
+                outfile.write(f"File: {filepath}\n")
+                outfile.write(f"{'='*50}\n\n")
+                with open(filepath, 'r', encoding='utf-8', errors='ignore') as infile:
+                    outfile.write(infile.read())
+                    
+print("تم تجميع الأكواد بنجاح في ملف all_code.txt")
+
+==================================================
+File: ./app/models.py
+==================================================
+
+from flask_sqlalchemy import SQLAlchemy
+from datetime import datetime
+import pytz
+from flask import request, session
+
+db = SQLAlchemy()
+
+def get_egypt_time():
+    return datetime.now(pytz.timezone('Africa/Cairo'))
+
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    real_name = db.Column(db.String(100), nullable=False)
+    username = db.Column(db.String(50), unique=True, nullable=False)
+    password = db.Column(db.String(200), nullable=False)
+    role = db.Column(db.String(20), nullable=False, default='staff')
+    permissions = db.Column(db.Text, nullable=True)
+    last_active = db.Column(db.DateTime, nullable=True)
+    is_deleted = db.Column(db.Boolean, default=False)
+
+class Supplier(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), unique=True, nullable=False)
+    phone = db.Column(db.String(50), nullable=True)
+
+class SizeDef(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(20), unique=True, nullable=False)
+
+class PrintShop(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), unique=True, nullable=False)
+
+class Fabric(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    unit = db.Column(db.String(20), nullable=False)
+    image_url = db.Column(db.String(200), nullable=True)
+    supplier_id = db.Column(db.Integer, db.ForeignKey('supplier.id'), nullable=True)
+    supplier = db.relationship('Supplier', backref='fabrics', lazy=True)
+    colors = db.relationship('FabricColor', backref='fabric', lazy=True)
+    is_deleted = db.Column(db.Boolean, default=False)
+
+class FabricColor(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    fabric_id = db.Column(db.Integer, db.ForeignKey('fabric.id'), nullable=False)
+    color_code = db.Column(db.String(50), nullable=False)
+    color_name = db.Column(db.String(50), nullable=True)
+    hex_code = db.Column(db.String(7), nullable=True)
+    price_per_unit = db.Column(db.Float, default=0.0)
+    quantity = db.Column(db.Float, default=0.0)
+    reserved_quantity = db.Column(db.Float, default=0.0)
+    is_deleted = db.Column(db.Boolean, default=False)
+
+class DesignModel(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    model_code = db.Column(db.String(50), unique=True, nullable=False)
+    image_url = db.Column(db.String(200), nullable=False)
+    model_type = db.Column(db.String(50), nullable=True)
+    status = db.Column(db.String(50), default='تصميم')
+    is_deleted = db.Column(db.Boolean, default=False)
+    target_quantity = db.Column(db.Integer, default=0)
+    marker_length = db.Column(db.Float, nullable=True)
+    sizes_selected = db.Column(db.String(200), nullable=True)
+    main_marker_url = db.Column(db.String(200), nullable=True)
+    print_marker_url = db.Column(db.String(200), nullable=True)
+    marker_efficiency = db.Column(db.Float, nullable=True)
+    notes_shirt = db.Column(db.Text, nullable=True)
+    notes_pants = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=get_egypt_time)
+    colored_at = db.Column(db.DateTime, nullable=True)
+    cut_at = db.Column(db.DateTime, nullable=True)
+    requirements = db.relationship('ModelRequirement', backref='model', lazy=True)
+    accessories = db.relationship('ModelAccessory', backref='model', lazy=True)
+    cutting_records = db.relationship('CuttingRecord', backref='model', lazy=True)
+    qc_records = db.relationship('QCRecord', backref='model', lazy=True)
+
+class ModelRequirement(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    model_id = db.Column(db.Integer, db.ForeignKey('design_model.id'), nullable=False)
+    color_id = db.Column(db.Integer, db.ForeignKey('fabric_color.id'), nullable=False)
+    part_name = db.Column(db.String(50), nullable=True)
+    planned_quantity = db.Column(db.Float, default=0.0)
+    color = db.relationship('FabricColor', backref='model_requirements', lazy=True)
+
+class ModelAccessory(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    model_id = db.Column(db.Integer, db.ForeignKey('design_model.id'), nullable=False)
+    accessory_name = db.Column(db.String(100), nullable=False)
+    planned_quantity = db.Column(db.Float, default=0.0)
+
+class FabricTransaction(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    color_id = db.Column(db.Integer, db.ForeignKey('fabric_color.id'), nullable=False)
+    model_code_ref = db.Column(db.String(50), nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+    operation = db.Column(db.String(20), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    timestamp = db.Column(db.DateTime, default=get_egypt_time)
+
+class CuttingRecord(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    model_id = db.Column(db.Integer, db.ForeignKey('design_model.id'), nullable=False)
+    color_name = db.Column(db.String(100), nullable=False)
+    cutter_name = db.Column(db.String(100), nullable=False)
+    layers_count = db.Column(db.Integer, nullable=False, default=0)
+    layer_weight = db.Column(db.Float, nullable=False, default=0.0)
+    pieces_count = db.Column(db.Integer, nullable=False, default=0)
+    shade_degree = db.Column(db.String(50), nullable=True)
+    created_at = db.Column(db.DateTime, default=get_egypt_time)
+
+class QCRecord(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    model_id = db.Column(db.Integer, db.ForeignKey('design_model.id'), nullable=False)
+    color_name = db.Column(db.String(100), nullable=False)
+    size = db.Column(db.String(20), nullable=False)
+    good_qty = db.Column(db.Integer, default=0, nullable=False)
+    defect_qty = db.Column(db.Integer, default=0, nullable=False)
+    defect_notes = db.Column(db.String(200), nullable=True)
+    stage = db.Column(db.String(50), default='قبل الطباعة')
+    created_at = db.Column(db.DateTime, default=get_egypt_time)
+
+class AuditLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    action = db.Column(db.String(200), nullable=False)
+    details = db.Column(db.Text, nullable=True)
+    ip_address = db.Column(db.String(50), nullable=True)
+    user_agent = db.Column(db.String(200), nullable=True)
+    timestamp = db.Column(db.DateTime, default=get_egypt_time)
+    user = db.relationship('User', backref='logs', lazy=True)
+
+def log_action(action, details=""):
+    try:
+        user_id = session.get('user_id')
+        ip = request.remote_addr
+        agent = request.user_agent.string
+        log = AuditLog(
+            user_id=user_id,
+            action=action,
+            details=details,
+            ip_address=ip,
+            user_agent=agent
+        )
+        db.session.add(log)
+        db.session.commit()
+    except Exception:
+        pass
+
+==================================================
+File: ./app/__init__.py
+==================================================
+
+from flask import Flask
+from app.models import db
+
+def create_app():
+    app = Flask(__name__)
+    app.config.from_object('config.Config')
+
+    db.init_app(app)
+
+    with app.app_context():
+        from app.auth.routes import auth_bp
+        app.register_blueprint(auth_bp)
+
+        from app.dashboard.routes import dashboard_bp
+        app.register_blueprint(dashboard_bp)
+        
+        from app.warehouse.routes import warehouse_bp
+        app.register_blueprint(warehouse_bp)
+
+        from app.design.routes import design_bp
+        app.register_blueprint(design_bp)
+
+        # تسجيل القص والفرز والإعدادات
+        from app.cutting.routes import cutting_bp
+        app.register_blueprint(cutting_bp)
+
+        from app.qc.routes import qc_bp
+        app.register_blueprint(qc_bp)
+
+        from app.settings.routes import settings_bp
+        app.register_blueprint(settings_bp)
+
+        @app.route('/')
+        def home():
+            from flask import redirect, url_for
+            return redirect(url_for('dashboard.index'))
+
+    return app
+
+==================================================
+File: ./app/settings/routes.py
+==================================================
+
+import json
+from flask import Blueprint, render_template, request, redirect, url_for, session
+from werkzeug.security import generate_password_hash
+from app.models import db, Supplier, SizeDef, PrintShop, User, AuditLog
+from datetime import datetime
+
+settings_bp = Blueprint('settings', __name__, url_prefix='/settings')
+
+@settings_bp.route('/')
+def index():
+    if session.get('role') != 'sudo':
+        return "غير مصرح لك بالوصول للإعدادات", 403
+
+    suppliers = Supplier.query.all()
+    sizes = SizeDef.query.all()
+    printshops = PrintShop.query.all()
+    
+    # تحويل الصلاحيات من النص المخزن في الداتابيز لـ JSON لسهولة العرض
+    users = User.query.filter_by(is_deleted=False).all()
+    for u in users:
+        try:
+            u.parsed_perms = json.loads(u.permissions) if u.permissions else {}
+        except:
+            u.parsed_perms = {}
+
+    return render_template('settings/index.html', suppliers=suppliers, sizes=sizes, printshops=printshops, users=users)
+
+@settings_bp.route('/add_user', methods=['POST'])
+def add_user():
+    if session.get('role') != 'sudo':
+        return "غير مصرح", 403
+
+    real_name = request.form.get('real_name')
+    username = request.form.get('username')
+    password = request.form.get('password')
+    role = request.form.get('role')
+
+    # تجميع الصلاحيات بصيغة JSON { "warehouse": "edit", "design": "view" }
+    perms_dict = {}
+    sections = ['warehouse', 'design', 'cutting', 'qc']
+    
+    if role == 'staff':
+        for sec in sections:
+            perm_type = request.form.get(f'perm_{sec}') # view, edit, or None
+            if perm_type:
+                perms_dict[sec] = perm_type
+
+    new_user = User(
+        real_name=real_name,
+        username=username,
+        password=generate_password_hash(password, method='pbkdf2:sha256'),
+        role=role,
+        permissions=json.dumps(perms_dict)
+    )
+    db.session.add(new_user)
+    db.session.commit()
+
+    return redirect(url_for('settings.index'))
+
+@settings_bp.route('/edit_user_permissions/<int:user_id>', methods=['POST'])
+def edit_user_permissions(user_id):
+    if session.get('role') != 'sudo':
+        return "غير مصرح", 403
+
+    user = User.query.get_or_404(user_id)
+    sections = ['warehouse', 'design', 'cutting', 'qc']
+    perms_dict = {}
+
+    for sec in sections:
+        perm_type = request.form.get(f'perm_{sec}')
+        if perm_type:
+            perms_dict[sec] = perm_type
+
+    user.permissions = json.dumps(perms_dict)
+    db.session.commit()
+
+    return redirect(url_for('settings.index'))
+
+@settings_bp.route('/logs')
+def view_logs():
+    if session.get('role') not in ['sudo', 'owner']:
+        return "غير مصرح لك بالدخول لسجلات المراقبة.", 403
+
+    query = AuditLog.query
+
+    user_id = request.args.get('user_id', type=int)
+    if user_id:
+        query = query.filter_by(user_id=user_id)
+
+    action = request.args.get('action')
+    if action:
+        query = query.filter(AuditLog.action.contains(action))
+
+    date_from = request.args.get('date_from')
+    date_to = request.args.get('date_to')
+    if date_from:
+        query = query.filter(AuditLog.timestamp >= datetime.strptime(date_from, '%Y-%m-%d'))
+    if date_to:
+        query = query.filter(AuditLog.timestamp <= datetime.strptime(date_to + " 23:59:59", '%Y-%m-%d %H:%M:%S'))
+
+    logs = query.order_by(AuditLog.timestamp.desc()).limit(300).all()
+    users = User.query.all()
+
+    return render_template('settings/logs.html', logs=logs, users=users)
+
+@settings_bp.route('/add_supplier', methods=['POST'])
+def add_supplier():
+    name = request.form.get('name')
+    phone = request.form.get('phone')
+    if name and not Supplier.query.filter_by(name=name).first():
+        db.session.add(Supplier(name=name, phone=phone))
+        db.session.commit()
+    return redirect(url_for('settings.index'))
+
+@settings_bp.route('/add_size', methods=['POST'])
+def add_size():
+    name = request.form.get('name')
+    if name and not SizeDef.query.filter_by(name=name).first():
+        db.session.add(SizeDef(name=name))
+        db.session.commit()
+    return redirect(url_for('settings.index'))
+
+@settings_bp.route('/add_printshop', methods=['POST'])
+def add_printshop():
+    name = request.form.get('name')
+    if name and not PrintShop.query.filter_by(name=name).first():
+        db.session.add(PrintShop(name=name))
+        db.session.commit()
+    return redirect(url_for('settings.index'))
+
+==================================================
+File: ./app/design/routes.py
+==================================================
+
+import os
+from flask import Blueprint, render_template, request, redirect, url_for, current_app
+from werkzeug.utils import secure_filename
+from app.models import db, DesignModel, Fabric, FabricColor, ModelRequirement, ModelAccessory, get_egypt_time, log_action
+
+design_bp = Blueprint('design', __name__, url_prefix='/design')
+
+@design_bp.route('/')
+def index():
+    models = DesignModel.query.filter_by(is_deleted=False).order_by(DesignModel.created_at.desc()).all()
+    log_action("زيارة قسم", "فتح قائمة التصميم والتخطيط")
+    return render_template('design/index.html', models=models)
+
+@design_bp.route('/inventory')
+def model_inventory():
+    search_query = request.args.get('q', '').strip()
+    status_filter = request.args.get('status', '')
+
+    query = DesignModel.query.filter_by(is_deleted=False)
+
+    if search_query:
+        query = query.filter(DesignModel.model_code.contains(search_query) | DesignModel.model_type.contains(search_query))
+    
+    if status_filter:
+        query = query.filter_by(status=status_filter)
+
+    models = query.order_by(DesignModel.created_at.desc()).all()
+    log_action("جرد الموديلات", f"بحث في جرد الموديلات بكلمة: {search_query}")
+    return render_template('design/inventory.html', models=models, search_query=search_query, status_filter=status_filter)
+
+@design_bp.route('/add', methods=['POST'])
+def add_model():
+    model_code = request.form.get('model_code')
+    model_type = request.form.get('model_type')
+    file = request.files.get('model_image')
+
+    if file and file.filename != '':
+        filename = secure_filename(file.filename)
+        upload_dir = os.path.join(current_app.root_path, 'static', 'uploads')
+        os.makedirs(upload_dir, exist_ok=True)
+        file.save(os.path.join(upload_dir, filename))
+        image_url = f'/static/uploads/{filename}'
+
+        new_model = DesignModel(model_code=model_code, model_type=model_type, image_url=image_url)
+        db.session.add(new_model)
+        db.session.commit()
+
+        log_action("إضافة موديل", f"تم رفع موديل جديد بكود: {model_code}")
+
+    return redirect(url_for('design.index'))
+
+@design_bp.route('/model/<int:model_id>')
+def model_details(model_id):
+    model = DesignModel.query.get_or_404(model_id)
+    fabrics = Fabric.query.filter_by(is_deleted=False).all()
+    return render_template('design/details.html', model=model, fabrics=fabrics)
+
+@design_bp.route('/model/<int:model_id>/add_color', methods=['POST'])
+def add_color(model_id):
+    color_id = request.form.get('color_id')
+    part_name = request.form.get('part_name')
+    req = ModelRequirement(model_id=model_id, color_id=color_id, part_name=part_name, planned_quantity=0.0)
+    db.session.add(req)
+    
+    model = DesignModel.query.get(model_id)
+    if not model.colored_at:
+        model.colored_at = get_egypt_time()
+
+    db.session.commit()
+    log_action("تلوين موديل", f"تم إضافة لون للقطعة ({part_name}) في الموديل {model.model_code}")
+    return redirect(url_for('design.model_details', model_id=model_id))
+
+@design_bp.route('/model/<int:model_id>/add_accessory', methods=['POST'])
+def add_accessory(model_id):
+    name = request.form.get('accessory_name')
+    acc = ModelAccessory(model_id=model_id, accessory_name=name, planned_quantity=0.0)
+    db.session.add(acc)
+    db.session.commit()
+    log_action("إضافة إكسسوار", f"تم إضافة ({name}) للموديل رقم {model_id}")
+    return redirect(url_for('design.model_details', model_id=model_id))
+
+@design_bp.route('/model/<int:model_id>/plan_quantities', methods=['POST'])
+def plan_quantities(model_id):
+    model = DesignModel.query.get_or_404(model_id)
+    for req in model.requirements:
+        val = request.form.get(f'req_{req.id}', type=float)
+        if val is not None:
+            req.planned_quantity = val
+    for acc in model.accessories:
+        val = request.form.get(f'acc_{acc.id}', type=float)
+        if val is not None:
+            acc.planned_quantity = val
+    db.session.commit()
+    log_action("تخطيط كميات", f"تم حجز وتحديث كميات للموديل {model.model_code}")
+    return redirect(url_for('design.model_details', model_id=model_id))
+
+@design_bp.route('/model/<int:model_id>/issue', methods=['POST'])
+def issue_fabric(model_id):
+    model = DesignModel.query.get_or_404(model_id)
+    model.status = 'في القص'
+    model.cut_at = get_egypt_time()
+    db.session.commit()
+    log_action("صرف قماش", f"تم صرف القماش وتحويل الموديل {model.model_code} إلى قسم القص")
+    return redirect(url_for('design.model_details', model_id=model_id))
+
+==================================================
+File: ./app/auth/routes.py
+==================================================
+
+from flask import Blueprint, render_template, request, redirect, url_for, session
+from werkzeug.security import check_password_hash
+from app.models import db, User, get_egypt_time
+
+auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
+
+@auth_bp.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+
+        user = User.query.filter_by(username=username).first()
+        if user and check_password_hash(user.password, password):
+            session['user_id'] = user.id
+            session['username'] = user.username
+            session['real_name'] = user.real_name
+            session['role'] = user.role
+            
+            # قراءة الصلاحيات بتنسيق dict
+            try:
+                session['permissions'] = json.loads(user.permissions) if user.permissions else {}
+            except:
+                session['permissions'] = {}
+
+            user.last_active = get_egypt_time()
+            db.session.commit()
+
+            return redirect(url_for('dashboard.index'))
+        else:
+            return render_template('auth/login.html', error="اسم المستخدم أو كلمة المرور غير صحيحة")
+
+    return render_template('auth/login.html')
+
+@auth_bp.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('auth.login'))
+
+@auth_bp.route('/fix_sudo')
+def fix_sudo():
+    from werkzeug.security import generate_password_hash
+    user = User.query.filter_by(username='sudo').first()
+    if user:
+        # إضافة خوارزمية التشفير المدعومة
+        user.password = generate_password_hash('sudo123', method='pbkdf2:sha256')
+        db.session.commit()
+        return "تم إعادة ضبط وتشفير الباسورد بنجاح! ارجع اعمل لوجين دلوقتي."
+    else:
+        new_sudo = User(
+            real_name='المبرمج (Sudo)',
+            username='sudo',
+            # إضافة خوارزمية التشفير المدعومة
+            password=generate_password_hash('sudo123', method='pbkdf2:sha256'),
+            role='sudo'
+        )
+        db.session.add(new_sudo)
+        db.session.commit()
+        return "تم إنشاء الحساب من جديد بنجاح! ارجع اعمل لوجين."
+
+==================================================
+File: ./app/auth/decorators.py
+==================================================
+
+from functools import wraps
+from flask import session, redirect, url_for, flash
+
+def require_permission(section_name, require_edit=False):
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if 'user_id' not in session:
+                return redirect(url_for('auth.login'))
+
+            role = session.get('role')
+
+            # الـ Sudo له كامل الصلاحيات
+            if role == 'sudo':
+                return f(*args, **kwargs)
+
+            # الـ Owner للمشاهدة فقط في كل الأقسام
+            if role == 'owner':
+                if require_edit:
+                    return "عفواً، حساب المالك مخصص للمشاهدة والتقارير فقط.", 403
+                return f(*args, **kwargs)
+
+            # الموظفين Staff
+            user_perms = session.get('permissions', {})
+            # permissions تكون dictionary مثل: {'warehouse': 'edit', 'design': 'view'}
+            
+            section_perm = user_perms.get(section_name)
+
+            if not section_perm:
+                return "عفواً، لا تملك الصلاحية للوصول لهذا القسم.", 403
+
+            if require_edit and section_perm != 'edit':
+                return "عفواً، تملك صلاحية المشاهدة فقط لهذا القسم ولا يمكنك التعديل أو الإضافة.", 403
+
+            return f(*args, **kwargs)
+        return decorator
+    return decorator
+
+==================================================
+File: ./app/dashboard/routes.py
+==================================================
+
+from flask import Blueprint, render_template, redirect, url_for, session
+from app.models import User, DesignModel, FabricColor, get_egypt_time
+from datetime import timedelta
+
+dashboard_bp = Blueprint('dashboard', __name__, url_prefix='/dashboard')
+
+@dashboard_bp.route('/')
+def index():
+    if 'user_id' not in session:
+        return redirect(url_for('auth.login'))
+
+    total_models = DesignModel.query.count()
+    total_fabrics = FabricColor.query.count()
+
+    time_threshold = get_egypt_time() - timedelta(minutes=60)
+    online_users = User.query.filter(User.last_active >= time_threshold).all()
+
+    return render_template('dashboard/index.html',
+                           total_models=total_models,
+                           total_fabrics=total_fabrics,
+                           online_users=online_users)
+
+==================================================
+File: ./app/templates/base.html
+==================================================
+
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}نظام إدارة المصنع{% endblock %}</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+            background-color: #f5f5f7; 
+            margin: 0; 
+            color: #1d1d1f; 
+        }
+
+        /* شريط علوي زجاجي بتصميم أبل Modern Glassmorphism Header */
+        .navbar { 
+            background: rgba(255, 255, 255, 0.8); 
+            backdrop-filter: blur(20px); 
+            -webkit-backdrop-filter: blur(20px); 
+            border-bottom: 1px solid rgba(0, 0, 0, 0.08); 
+            padding: 12px 28px; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            position: sticky; 
+            top: 0; 
+            z-index: 1000; 
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02);
+        }
+
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 700;
+            font-size: 16px;
+            color: #1d1d1f;
+        }
+
+        .nav-links { 
+            display: flex; 
+            align-items: center; 
+            gap: 8px; 
+        }
+
+        .nav-links a { 
+            color: #515154; 
+            text-decoration: none; 
+            font-weight: 500; 
+            font-size: 14px; 
+            padding: 8px 16px; 
+            border-radius: 20px; 
+            transition: all 0.2s ease; 
+        }
+
+        .nav-links a:hover { 
+            background: rgba(0, 0, 0, 0.05); 
+            color: #0071e3; 
+        }
+
+        .nav-user {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 14px;
+            font-weight: 500;
+            color: #1d1d1f;
+            background: #f5f5f7;
+            padding: 6px 14px;
+            border-radius: 20px;
+            border: 1px solid #e8e8ed;
+        }
+
+        .logout-btn { 
+            color: #ff3b30 !important; 
+            font-weight: 600; 
+            text-decoration: none; 
+            padding: 4px 10px; 
+            border-radius: 12px; 
+            transition: 0.2s; 
+        }
+
+        .logout-btn:hover {
+            background: rgba(255, 59, 48, 0.1);
+        }
+
+        .container { 
+            max-width: 1200px; 
+            margin: 28px auto; 
+            padding: 0 20px; 
+        }
+    </style>
+</head>
+<body>
+    {% if session.get('user_id') %}
+    <div class="navbar">
+        <div class="nav-brand">
+            🏭 <span>نظام المصنع</span>
+        </div>
+
+        <div class="nav-links">
+            <a href="/dashboard">📊 الرئيسية</a>
+            {% if session.get('role') in ['sudo', 'owner'] or 'warehouse' in session.get('permissions', []) %}<a href="/warehouse">📦 المخزن</a>{% endif %}
+            {% if session.get('role') in ['sudo', 'owner'] or 'design' in session.get('permissions', []) %}
+                <a href="/design">🎨 التصميم</a>
+                <a href="/design/inventory">📂 جرد الموديلات</a>
+            {% endif %}
+            {% if session.get('role') in ['sudo', 'owner'] or 'cutting' in session.get('permissions', []) %}<a href="/cutting">✂️ القص</a>{% endif %}
+            {% if session.get('role') in ['sudo', 'owner'] or 'qc' in session.get('permissions', []) %}<a href="/qc">🔍 الفرز</a>{% endif %}
+            {% if session.get('role') == 'sudo' %}<a href="/settings">⚙️ الإعدادات</a>{% endif %}
+        </div>
+
+        <div class="nav-user">
+            <span>👤 {{ session.get('real_name') }}</span>
+            <a href="/auth/logout" class="logout-btn">خروج 🚪</a>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="container">
+        {% block content %}{% endblock %}
+    </div>
+</body>
+</html>
+
+==================================================
+File: ./app/templates/settings/index.html
+==================================================
+
+{% extends 'base.html' %}
+{% block content %}
+<style>
+    .apple-card { background: white; padding: 24px; border-radius: 18px; border: 1px solid #f1f1f4; box-shadow: 0 4px 16px rgba(0,0,0,0.03); margin-bottom: 24px; }
+    .form-input { width: 100%; padding: 10px 14px; border: 1px solid #d2d2d7; border-radius: 12px; font-family: inherit; font-size: 14px; box-sizing: border-box; outline: none; margin-bottom: 10px; }
+    .apple-btn { padding: 10px 18px; border: none; border-radius: 12px; cursor: pointer; font-weight: 600; font-size: 14px; background: #0071e3; color: white; text-decoration: none; display: inline-block; text-align: center; }
+    .perm-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+    .perm-table th, .perm-table td { border-bottom: 1px solid #f5f5f7; padding: 10px; text-align: right; }
+    .perm-table th { background: #f5f5f7; color: #86868b; }
+</style>
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+    <div>
+        <h2 style="margin: 0 0 4px 0; font-weight: 700;">⚙️ إعدادات وحسابات النظام</h2>
+        <p style="color: #86868b; margin: 0;">إدارة الحسابات والصلاحيات الدقيقة، سجل المراقبة، وتعاريف المصنع.</p>
+    </div>
+    <a href="/settings/logs" class="apple-btn" style="background: #1d1d1f;">🕵️ سجل المراقبة (Audit Logs)</a>
+</div>
+
+<!-- 1. إدارة حسابات الموظفين والصلاحيات -->
+<div class="apple-card">
+    <h3 style="margin-top: 0;">👥 الحسابات المسجلة والصلاحيات</h3>
+    
+    <table class="perm-table">
+        <thead>
+            <tr>
+                <th>الاسم الحقيقي</th>
+                <th>اسم المستخدم</th>
+                <th>النوع</th>
+                <th>صلاحيات الأقسام (مشاهدة / تعديل)</th>
+                <th>تعديل الصلاحيات</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for u in users %}
+            <tr>
+                <td><strong>{{ u.real_name }}</strong></td>
+                <td>{{ u.username }}</td>
+                <td><span style="background: #e8e8ed; padding: 2px 8px; border-radius: 8px;">{{ u.role }}</span></td>
+                <td>
+                    {% if u.role == 'sudo' %}
+                        <span style="color: #34c759; font-weight: 600;">كامل الصلاحيات (Sudo)</span>
+                    {% elif u.role == 'owner' %}
+                        <span style="color: #0071e3; font-weight: 600;">مشاهدة فقط لجميع الأقسام</span>
+                    {% else %}
+                        {% for sec, ptype in u.parsed_perms.items() %}
+                            <span style="font-size: 11px; background: #f5f5f7; padding: 2px 6px; border-radius: 6px; margin-left: 4px;">
+                                {{ sec }}: <strong>{% if ptype == 'edit' %}تعديل ومشاهدة{% else %}مشاهدة فقط{% endif %}</strong>
+                            </span>
+                        {% else %}
+                            <span style="color: #86868b;">بدون صلاحيات</span>
+                        {% endfor %}
+                    {% endif %}
+                </td>
+                <td>
+                    {% if u.role == 'staff' %}
+                    <form action="/settings/edit_user_permissions/{{ u.id }}" method="POST" style="display: flex; gap: 8px; align-items: center;">
+                        <select name="perm_warehouse" style="font-size: 11px;"><option value="">المخزن: بدون</option><option value="view" {% if u.parsed_perms.get('warehouse')=='view' %}selected{% endif %}>مشاهدة</option><option value="edit" {% if u.parsed_perms.get('warehouse')=='edit' %}selected{% endif %}>تعديل</option></select>
+                        <select name="perm_design" style="font-size: 11px;"><option value="">التصميم: بدون</option><option value="view" {% if u.parsed_perms.get('design')=='view' %}selected{% endif %}>مشاهدة</option><option value="edit" {% if u.parsed_perms.get('design')=='edit' %}selected{% endif %}>تعديل</option></select>
+                        <select name="perm_cutting" style="font-size: 11px;"><option value="">القص: بدون</option><option value="view" {% if u.parsed_perms.get('cutting')=='view' %}selected{% endif %}>مشاهدة</option><option value="edit" {% if u.parsed_perms.get('cutting')=='edit' %}selected{% endif %}>تعديل</option></select>
+                        <select name="perm_qc" style="font-size: 11px;"><option value="">الفرز: بدون</option><option value="view" {% if u.parsed_perms.get('qc')=='view' %}selected{% endif %}>مشاهدة</option><option value="edit" {% if u.parsed_perms.get('qc')=='edit' %}selected{% endif %}>تعديل</option></select>
+                        <button type="submit" class="apple-btn" style="padding: 4px 8px; font-size: 11px;">تحديث</button>
+                    </form>
+                    {% else %}
+                        ---
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <hr style="border: 0; border-top: 1px solid #f5f5f7; margin: 20px 0;">
+
+    <h4>➕ إنشاء حساب جديد</h4>
+    <form action="/settings/add_user" method="POST">
+        <div style="display: flex; gap: 12px; margin-bottom: 12px;">
+            <input type="text" name="real_name" class="form-input" placeholder="الاسم الحقيقي" required>
+            <input type="text" name="username" class="form-input" placeholder="اسم المستخدم" required>
+            <input type="password" name="password" class="form-input" placeholder="كلمة المرور" required>
+            <select name="role" class="form-input" required>
+                <option value="staff">موظف (Staff)</option>
+                <option value="owner">مالك (Owner)</option>
+            </select>
+        </div>
+
+        <div style="background: #f5f5f7; padding: 12px; border-radius: 12px; font-size: 13px; margin-bottom: 12px;">
+            <strong>حدد صلاحيات الموظف بالتفصيل:</strong>
+            <div style="display: flex; gap: 16px; margin-top: 8px;">
+                <div>📦 المخزن: <select name="perm_warehouse"><option value="">بدون</option><option value="view">مشاهدة فقط</option><option value="edit">مشاهدة وتعديل</option></select></div>
+                <div>🎨 التصميم: <select name="perm_design"><option value="">بدون</option><option value="view">مشاهدة فقط</option><option value="edit">مشاهدة وتعديل</option></select></div>
+                <div>✂️ القص: <select name="perm_cutting"><option value="">بدون</option><option value="view">مشاهدة فقط</option><option value="edit">مشاهدة وتعديل</option></select></div>
+                <div>🔍 الفرز: <select name="perm_qc"><option value="">بدون</option><option value="view">مشاهدة فقط</option><option value="edit">مشاهدة وتعديل</option></select></div>
+            </div>
+        </div>
+
+        <button type="submit" class="apple-btn">حفظ وتأكيد الحساب</button>
+    </form>
+</div>
+
+<!-- 2. الكروت التعريفية للمصنع -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+    <div class="apple-card">
+        <h4 style="margin-top: 0;">🏢 الموردين</h4>
+        <form action="/settings/add_supplier" method="POST">
+            <input type="text" name="name" class="form-input" placeholder="اسم المورد" required>
+            <button type="submit" class="apple-btn" style="width: 100%;">إضافة مورد</button>
+        </form>
+    </div>
+
+    <div class="apple-card">
+        <h4 style="margin-top: 0;">📏 المقاسات</h4>
+        <form action="/settings/add_size" method="POST">
+            <input type="text" name="name" class="form-input" placeholder="مثل: S, M, L" required>
+            <button type="submit" class="apple-btn" style="width: 100%;">إضافة مقاس</button>
+        </form>
+    </div>
+
+    <div class="apple-card">
+        <h4 style="margin-top: 0;">🖨️ المطابع</h4>
+        <form action="/settings/add_printshop" method="POST">
+            <input type="text" name="name" class="form-input" placeholder="اسم المطبعة" required>
+            <button type="submit" class="apple-btn" style="width: 100%;">إضافة مطبعة</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+==================================================
+File: ./app/templates/settings/logs.html
+==================================================
+
+{% extends 'base.html' %}
+{% block content %}
+<style>
+    .filter-card { background: white; border-radius: 16px; padding: 20px; border: 1px solid #f1f1f4; margin-bottom: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.02); }
+    .filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; align-items: flex-end; }
+    .form-input { width: 100%; padding: 10px; border: 1px solid #d2d2d7; border-radius: 10px; font-family: inherit; font-size: 13px; box-sizing: border-box; }
+    .apple-btn { padding: 10px 18px; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; font-size: 13px; background: #0071e3; color: white; text-decoration: none; text-align: center; }
+    .log-table { width: 100%; border-collapse: collapse; background: white; border-radius: 16px; overflow: hidden; border: 1px solid #f1f1f4; font-size: 13px; }
+    .log-table th, .log-table td { padding: 12px 16px; text-align: right; border-bottom: 1px solid #f5f5f7; }
+    .log-table th { background: #f5f5f7; color: #86868b; font-weight: 600; }
+    .badge { padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; background: #e8e8ed; color: #1d1d1f; }
+</style>
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <h2 style="margin: 0;">🕵️ سجل المراقبة والحركات (Audit Logs)</h2>
+    <a href="/settings" class="apple-btn" style="background: #8e8e93;">← العودة للإعدادات</a>
+</div>
+
+<div class="filter-card">
+    <form method="GET" action="/settings/logs" class="filter-grid">
+        <div>
+            <label style="font-size: 12px; color: #86868b;">المستخدم:</label>
+            <select name="user_id" class="form-input">
+                <option value="">-- الكل --</option>
+                {% for u in users %}
+                    <option value="{{ u.id }}" {% if request.args.get('user_id')|int == u.id %}selected{% endif %}>{{ u.real_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div>
+            <label style="font-size: 12px; color: #86868b;">القسم / نوع الحركة:</label>
+            <select name="action" class="form-input">
+                <option value="">-- كل الأقسام --</option>
+                <option value="المخزن" {% if request.args.get('action') == 'المخزن' %}selected{% endif %}>المخزن والقماش</option>
+                <option value="موديل" {% if request.args.get('action') == 'موديل' %}selected{% endif %}>التصميم والموديلات</option>
+                <option value="قص" {% if request.args.get('action') == 'قص' %}selected{% endif %}>القص</option>
+                <option value="فرز" {% if request.args.get('action') == 'فرز' %}selected{% endif %}>الفرز والكنترول</option>
+                <option value="دخول" {% if request.args.get('action') == 'دخول' %}selected{% endif %}>تسجيل الدخول</option>
+            </select>
+        </div>
+
+        <div>
+            <label style="font-size: 12px; color: #86868b;">من تاريخ:</label>
+            <input type="date" name="date_from" value="{{ request.args.get('date_from', '') }}" class="form-input">
+        </div>
+
+        <div>
+            <label style="font-size: 12px; color: #86868b;">إلى تاريخ:</label>
+            <input type="date" name="date_to" value="{{ request.args.get('date_to', '') }}" class="form-input">
+        </div>
+
+        <div style="display: flex; gap: 8px;">
+            <button type="submit" class="apple-btn" style="flex: 1;">تطبيق الفلتر</button>
+            <a href="/settings/logs" class="apple-btn" style="background: #e8e8ed; color: #1d1d1f; flex: 1;">إلغاء</a>
+        </div>
+    </form>
+</div>
+
+<table class="log-table">
+    <thead>
+        <tr>
+            <th>التاريخ والوقت</th>
+            <th>المستخدم</th>
+            <th>نوع الإجراء</th>
+            <th>التفاصيل</th>
+            <th>IP الجهاز</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for log in logs %}
+        <tr>
+            <td dir="ltr" style="text-align: right; color: #86868b;">{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+            <td><strong>{{ log.user.real_name if log.user else 'غير معروف' }}</strong></td>
+            <td><span class="badge">{{ log.action }}</span></td>
+            <td>{{ log.details }}</td>
+            <td dir="ltr" style="text-align: right; font-size: 11px; color: #86868b;">{{ log.ip_address }}</td>
+        </tr>
+        {% else %}
+        <tr>
+            <td colspan="5" style="text-align: center; color: #86868b; padding: 24px;">لا توجد سجلات مطابقة.</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
+
+==================================================
+File: ./app/templates/design/index.html
+==================================================
+
+{% extends 'base.html' %}
+{% block content %}
+<style>
+    .apple-card { background: white; border-radius: 16px; padding: 20px; border: 1px solid #f1f1f4; box-shadow: 0 4px 12px rgba(0,0,0,0.03); }
+    .header-actions { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+    .models-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; }
+    .model-card { background: white; border-radius: 16px; overflow: hidden; border: 1px solid #f1f1f4; box-shadow: 0 4px 12px rgba(0,0,0,0.04); transition: transform 0.2s; }
+    .model-card:hover { transform: translateY(-4px); }
+    .model-image { width: 100%; height: 240px; object-fit: cover; background: #f5f5f7; }
+    .model-details { padding: 16px; text-align: center; }
+    .apple-btn { padding: 10px 20px; border: none; border-radius: 20px; cursor: pointer; font-weight: 600; font-size: 14px; background: #0071e3; color: white; text-decoration: none; display: inline-block; }
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); z-index: 1000; justify-content: center; align-items: center; }
+    .modal-box { background: white; padding: 28px; border-radius: 20px; width: 100%; max-width: 420px; }
+    .form-input { width: 100%; padding: 12px; border: 1px solid #d2d2d7; border-radius: 12px; margin-bottom: 16px; font-family: inherit; font-size: 14px; box-sizing: border-box; }
+</style>
+
+<div class="header-actions">
+    <h2 style="margin: 0; font-weight: 700;">🎨 قسم التصميم والموديلات</h2>
+    <button class="apple-btn" onclick="document.getElementById('addModelModal').style.display='flex'">+ إضافة موديل جديد</button>
+</div>
+
+<div class="models-grid">
+    {% for model in models %}
+    <div class="model-card">
+        <img src="{{ model.image_url }}" class="model-image">
+        <div class="model-details">
+            <h3 style="margin: 0 0 8px 0; font-size: 18px;">{{ model.model_code }}</h3>
+            <span style="background: #fef08a; color: #854d0e; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600;">{{ model.status }}</span>
+            <div style="margin-top: 16px;">
+                <a href="/design/model/{{ model.id }}" class="apple-btn" style="width: 100%; box-sizing: border-box; background: #1d1d1f;">التفاصيل وتلوين الموديل</a>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <p style="color: #86868b;">لا توجد موديلات حالياً.</p>
+    {% endfor %}
+</div>
+
+<div id="addModelModal" class="modal-overlay">
+    <div class="modal-box">
+        <h3 style="margin-top: 0;">إضافة موديل جديد</h3>
+        <form action="/design/add" method="POST" enctype="multipart/form-data">
+            <input type="text" name="model_code" class="form-input" placeholder="كود الموديل (مثال: M-101)" required>
+            <input type="text" name="model_type" class="form-input" placeholder="نوع الموديل (تيشرت، بنطلون...)">
+            <label style="font-size: 13px; color: #86868b;">صورة الموديل:</label>
+            <input type="file" name="model_image" accept="image/*" class="form-input" required>
+            
+            <div style="display: flex; gap: 12px; margin-top: 16px;">
+                <button type="submit" class="apple-btn" style="flex: 1;">حفظ</button>
+                <button type="button" class="apple-btn" style="flex: 1; background: #e8e8ed; color: #1d1d1f;" onclick="document.getElementById('addModelModal').style.display='none'">إلغاء</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+==================================================
+File: ./app/templates/design/inventory.html
+==================================================
+
+{% extends 'base.html' %}
+{% block content %}
+<style>
+    .search-card { background: white; border-radius: 16px; padding: 20px; border: 1px solid #f1f1f4; margin-bottom: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.02); }
+    .search-grid { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .form-input { flex: 1; min-width: 200px; padding: 12px 16px; border: 1px solid #d2d2d7; border-radius: 12px; font-family: inherit; font-size: 14px; outline: none; }
+    .apple-btn { padding: 12px 24px; border: none; border-radius: 12px; cursor: pointer; font-weight: 600; font-size: 14px; background: #0071e3; color: white; text-decoration: none; text-align: center; }
+
+    .models-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; }
+    .model-card { background: white; border-radius: 18px; border: 1px solid #f1f1f4; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.03); transition: transform 0.2s; }
+    .model-card:hover { transform: translateY(-4px); }
+    .model-header { display: flex; gap: 16px; padding: 16px; border-bottom: 1px solid #f5f5f7; }
+    .model-img { width: 90px; height: 90px; border-radius: 12px; object-fit: cover; background: #f5f5f7; }
+    .badge { padding: 4px 10px; border-radius: 10px; font-size: 11px; font-weight: 600; display: inline-block; margin-top: 4px; }
+    .status-design { background: #fef08a; color: #854d0e; }
+    .status-cut { background: #ff3b30; color: white; }
+    .status-qc { background: #af52de; color: white; }
+
+    /* الشريط الزمني */
+    .timeline { padding: 16px; background: #fafafa; border-top: 1px solid #f5f5f7; }
+    .timeline-title { font-size: 12px; font-weight: 700; color: #86868b; margin-bottom: 12px; }
+    .timeline-steps { display: flex; justify-content: space-between; position: relative; }
+    .timeline-step { flex: 1; text-align: center; font-size: 11px; color: #86868b; position: relative; }
+    .timeline-step.active { color: #0071e3; font-weight: 700; }
+    .step-dot { width: 10px; height: 10px; border-radius: 50%; background: #d2d2d7; margin: 0 auto 6px; }
+    .timeline-step.active .step-dot { background: #0071e3; box-shadow: 0 0 0 3px rgba(0,113,227,0.2); }
+</style>
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+    <div>
+        <h2 style="margin: 0 0 4px 0; font-weight: 700;">📂 جرد وتتبع الموديلات</h2>
+        <p style="color: #86868b; margin: 0;">بحث شامل وتتبع حركة الموديلات عبر مراحل الإنتاج بالكامل.</p>
+    </div>
+    <a href="/design" class="apple-btn" style="background: #e8e8ed; color: #1d1d1f;">🎨 قسم التصميم الرئيسي</a>
+</div>
+
+<!-- شريط البحث والفلترة -->
+<div class="search-card">
+    <form method="GET" action="/design/inventory" class="search-grid">
+        <input type="text" name="q" value="{{ search_query }}" class="form-input" placeholder="🔍 ابحث بكود الموديل أو النوع (مثال: M-101)...">
+        <select name="status" class="form-input" style="flex: 0.5;">
+            <option value="">-- جميع الحالات --</option>
+            <option value="تصميم" {% if status_filter == 'تصميم' %}selected{% endif %}>في التجهيز والتصميم</option>
+            <option value="في القص" {% if status_filter == 'في القص' %}selected{% endif %}>في القص</option>
+            <option value="فرز وكنترول" {% if status_filter == 'فرز وكنترول' %}selected{% endif %}>في الفرز والكنترول</option>
+        </select>
+        <button type="submit" class="apple-btn">بحث</button>
+        {% if search_query or status_filter %}
+            <a href="/design/inventory" class="apple-btn" style="background: #e8e8ed; color: #1d1d1f;">إلغاء البحث</a>
+        {% endif %}
+    </form>
+</div>
+
+<!-- عرض كروت الموديلات -->
+<div class="models-grid">
+    {% for model in models %}
+    <div class="model-card">
+        <div class="model-header">
+            <img src="{{ model.image_url }}" class="model-img">
+            <div>
+                <h3 style="margin: 0 0 4px 0; font-size: 16px;">كود: {{ model.model_code }}</h3>
+                <div style="font-size: 13px; color: #86868b;">النوع: {{ model.model_type or 'غير محدد' }}</div>
+                <span class="badge {% if model.status == 'في القص' %}status-cut{% elif model.status == 'فرز وكنترول' %}status-qc{% else %}status-design{% endif %}">
+                    {{ model.status }}
+                </span>
+            </div>
+        </div>
+
+        <div style="padding: 16px; font-size: 13px; color: #515154;">
+            <div style="margin-bottom: 6px;"><strong>الأقمشة المستخدمة:</strong> {{ model.requirements|length }} خامات</div>
+            <div><strong>تاريخ الإنشاء:</strong> {{ model.created_at.strftime('%Y-%m-%d') if model.created_at else '---' }}</div>
+        </div>
+
+        <!-- الشريط الزمني للموديل -->
+        <div class="timeline">
+            <div class="timeline-title">تتبع رحلة الموديل:</div>
+            <div class="timeline-steps">
+                <div class="timeline-step active">
+                    <div class="step-dot"></div>
+                    إنشاء
+                    <div style="font-size: 9px; color: #a1a1a6;">{{ model.created_at.strftime('%m/%d') if model.created_at else '' }}</div>
+                </div>
+                <div class="timeline-step {% if model.colored_at %}active{% endif %}">
+                    <div class="step-dot"></div>
+                    تلوين
+                    <div style="font-size: 9px; color: #a1a1a6;">{{ model.colored_at.strftime('%m/%d') if model.colored_at else '' }}</div>
+                </div>
+                <div class="timeline-step {% if model.cut_at %}active{% endif %}">
+                    <div class="step-dot"></div>
+                    القص
+                    <div style="font-size: 9px; color: #a1a1a6;">{{ model.cut_at.strftime('%m/%d') if model.cut_at else '' }}</div>
+                </div>
+                <div class="timeline-step {% if model.status == 'فرز وكنترول' or model.status == 'جاهز للطباعة / التجميع' %}active{% endif %}">
+                    <div class="step-dot"></div>
+                    الفرز
+                </div>
+            </div>
+        </div>
+
+        <div style="padding: 12px 16px; background: white; text-align: center;">
+            <a href="/design/model/{{ model.id }}" class="apple-btn" style="display: block; background: #1d1d1f; font-size: 13px; padding: 8px;">عرض تفاصيل الموديل بالكامل</a>
+        </div>
+    </div>
+    {% else %}
+    <p style="color: #86868b; grid-column: 1 / -1; text-align: center; padding: 40px;">لا توجد موديلات مطابقة لنتائج البحث.</p>
+    {% endfor %}
+</div>
+{% endblock %}
+
+==================================================
+File: ./app/templates/design/details.html
+==================================================
+
+{% extends 'base.html' %}
+{% block content %}
+<style>
+    .apple-card { background: white; border-radius: 16px; padding: 24px; border: 1px solid #f1f1f4; box-shadow: 0 4px 12px rgba(0,0,0,0.03); margin-bottom: 20px; }
+    .form-input { width: 100%; padding: 10px 14px; border: 1px solid #d2d2d7; border-radius: 10px; font-family: inherit; font-size: 14px; box-sizing: border-box; }
+    .apple-btn { padding: 10px 20px; border: none; border-radius: 12px; cursor: pointer; font-weight: 600; font-size: 14px; background: #0071e3; color: white; text-decoration: none; display: inline-block; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    th, td { border-bottom: 1px solid #f1f1f4; padding: 12px; text-align: right; font-size: 14px; }
+    th { background: #f5f5f7; color: #86868b; font-weight: 600; }
+</style>
+
+<div style="margin-bottom: 16px;">
+    <a href="/design" style="color: #0071e3; text-decoration: none; font-weight: 600;">← العودة للموديلات</a>
+</div>
+
+<div class="apple-card" style="display: flex; gap: 24px; align-items: flex-start;">
+    <img src="{{ model.image_url }}" style="width: 180px; height: 180px; border-radius: 12px; object-fit: cover;">
+    <div style="flex: 1;">
+        <h2 style="margin: 0 0 8px 0;">موديل: {{ model.model_code }}</h2>
+        <p style="color: #86868b; margin: 0 0 16px 0;">النوع: {{ model.model_type or 'غير محدد' }} | الحالة: {{ model.status }}</p>
+        
+        {% if model.status != 'في القص' %}
+        <form action="/design/model/{{ model.id }}/issue" method="POST" onsubmit="return confirm('هل أنت متأكد من تحويل الموديل للقص؟');">
+            <button type="submit" class="apple-btn" style="background: #34c759;">✂️ صرف القماش وبدء القص</button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+<div style="display: flex; gap: 20px; flex-wrap: wrap;">
+    <!-- 1. ألوان وإكسسوارات الموديل -->
+    <div style="flex: 1; min-width: 380px;" class="apple-card">
+        <h3 style="margin-top: 0; color: #0071e3;">🎨 1. تلوين الموديل</h3>
+        
+        <form action="/design/model/{{ model.id }}/add_color" method="POST" style="display: flex; gap: 10px; margin-bottom: 16px;">
+            <select name="color_id" class="form-input" required style="flex: 2;">
+                <option value="">-- اختر اللون من المخزن --</option>
+                {% for f in fabrics %}
+                    {% for c in f.colors %}
+                        <option value="{{ c.id }}">{{ f.name }} - كود: {{ c.color_code }}</option>
+                    {% endfor %}
+                {% endfor %}
+            </select>
+            <input type="text" name="part_name" class="form-input" placeholder="اسم القطعة" required style="flex: 1;">
+            <button type="submit" class="apple-btn">+ إضافة</button>
+        </form>
+
+        <form action="/design/model/{{ model.id }}/add_accessory" method="POST" style="display: flex; gap: 10px;">
+            <input type="text" name="accessory_name" class="form-input" placeholder="اسم الإكسسوار" required style="flex: 2;">
+            <button type="submit" class="apple-btn" style="background: #8e8e93;">+ إضافة إكسسوار</button>
+        </form>
+    </div>
+
+    <!-- 2. تخطيط الكميات -->
+    <div style="flex: 1; min-width: 380px;" class="apple-card">
+        <h3 style="margin-top: 0; color: #34c759;">📊 2. حجز وتخطيط الكميات</h3>
+        
+        <form action="/design/model/{{ model.id }}/plan_quantities" method="POST">
+            <h4 style="margin: 12px 0 6px 0;">الأقمشة المطلوبة:</h4>
+            <table>
+                <tr><th>القطعة</th><th>الخامة واللون</th><th>الكمية</th></tr>
+                {% for req in model.requirements %}
+                <tr>
+                    <td>{{ req.part_name }}</td>
+                    <td>{{ req.color.fabric.name }} - {{ req.color.color_code }}</td>
+                    <td><input type="number" step="0.01" name="req_{{ req.id }}" value="{{ req.planned_quantity }}" class="form-input" style="width: 90px; padding: 4px 8px;"></td>
+                </tr>
+                {% endfor %}
+            </table>
+
+            <h4 style="margin: 16px 0 6px 0;">الإكسسوارات:</h4>
+            <table>
+                <tr><th>الإكسسوار</th><th>الكمية</th></tr>
+                {% for acc in model.accessories %}
+                <tr>
+                    <td>{{ acc.accessory_name }}</td>
+                    <td><input type="number" step="0.01" name="acc_{{ acc.id }}" value="{{ acc.planned_quantity }}" class="form-input" style="width: 90px; padding: 4px 8px;"></td>
+                </tr>
+                {% endfor %}
+            </table>
+
+            <button type="submit" class="apple-btn" style="width: 100%; margin-top: 16px; background: #34c759;">💾 حفظ وتأكيد الكميات</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+==================================================
+File: ./app/templates/auth/login.html
+==================================================
+
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>تسجيل الدخول - نظام المصنع</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8fafc; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .login-box { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
+        .login-box h2 { margin-top: 0; color: #1e293b; margin-bottom: 30px; }
+        input { width: 100%; padding: 12px; margin-bottom: 20px; border: 1px solid #cbd5e1; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
+        .btn { width: 100%; padding: 12px; background-color: #0f172a; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; }
+        .btn:hover { background-color: #1e293b; }
+        .error { color: #dc2626; background: #fee2e2; padding: 10px; border-radius: 8px; margin-bottom: 20px; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="login-box">
+        <h2>🔒 تسجيل الدخول</h2>
+        {% if error %}
+            <div class="error">{{ error }}</div>
+        {% endif %}
+        <form action="/auth/login" method="POST">
+            <input type="text" name="username" placeholder="اسم المستخدم" required autocomplete="off">
+            <input type="password" name="password" placeholder="كلمة المرور" required>
+            <button type="submit" class="btn">دخول</button>
+        </form>
+    </div>
+</body>
+</html>
+
+==================================================
+File: ./app/templates/dashboard/index.html
+==================================================
+
+{% extends 'base.html' %}
+{% block content %}
+<style>
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; margin-bottom: 30px; }
+    .stat-card { background: white; padding: 24px; border-radius: 18px; text-align: center; border: 1px solid #f1f1f4; box-shadow: 0 4px 16px rgba(0,0,0,0.02); }
+    .stat-card h3 { margin: 0; color: #86868b; font-size: 15px; }
+    .stat-card .num { font-size: 36px; font-weight: 700; color: #1d1d1f; margin-top: 8px; }
+</style>
+
+<div class="stats-grid">
+    <div class="stat-card"><h3>إجمالي الموديلات</h3><div class="num">{{ total_models }}</div></div>
+    <div class="stat-card"><h3>ألوان الخامات</h3><div class="num">{{ total_fabrics }}</div></div>
+    <div class="stat-card"><h3>المستخدمين المتصلين الان</h3><div class="num" style="color: #34c759;">{{ online_users|length }}</div></div>
+</div>
+
+<div style="background: white; padding: 24px; border-radius: 18px; border: 1px solid #f1f1f4; box-shadow: 0 4px 16px rgba(0,0,0,0.02);">
+    <h3 style="margin-top: 0; color: #1d1d1f;">🟢 المتواجدون حالياً</h3>
+    <ul style="list-style: none; padding: 0; margin: 0;">
+        {% for u in online_users %}
+        <li style="padding: 12px 0; border-bottom: 1px solid #f5f5f7; font-size: 14px; display: flex; justify-content: space-between;">
+            <span><strong>{{ u.real_name }}</strong> <span style="color: #86868b;">({{ u.role }})</span></span>
+            <span style="color: #34c759; font-size: 12px; font-weight: 600;">نشط الآن</span>
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+{% endblock %}
+
+==================================================
+File: ./app/templates/dashboard/logs.html
+==================================================
+
+{% extends 'base.html' %}
+{% block content %}
+<style>
+    .filter-card { background: white; border-radius: 16px; padding: 20px; border: 1px solid #f1f1f4; margin-bottom: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.02); }
+    .filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; align-items: flex-end; }
+    .form-input { width: 100%; padding: 10px; border: 1px solid #d2d2d7; border-radius: 10px; font-family: inherit; font-size: 13px; box-sizing: border-box; }
+    .apple-btn { padding: 10px 18px; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; font-size: 13px; background: #0071e3; color: white; text-decoration: none; text-align: center; }
+    
+    .log-table { width: 100%; border-collapse: collapse; background: white; border-radius: 16px; overflow: hidden; border: 1px solid #f1f1f4; font-size: 13px; }
+    .log-table th, .log-table td { padding: 12px 16px; text-align: right; border-bottom: 1px solid #f5f5f7; }
+    .log-table th { background: #f5f5f7; color: #86868b; font-weight: 600; }
+    .badge { padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; background: #e8e8ed; color: #1d1d1f; }
+</style>
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <h2 style="margin: 0;">🕵️ سجل المراقبة والحركات (Audit Logs)</h2>
+    <a href="/dashboard" class="apple-btn" style="background: #8e8e93;">← العودة للرئيسية</a>
+</div>
+
+<!-- شريط الفلاتر -->
+<div class="filter-card">
+    <form method="GET" action="/dashboard/logs" class="filter-grid">
+        <div>
+            <label style="font-size: 12px; color: #86868b;">المستخدم:</label>
+            <select name="user_id" class="form-input">
+                <option value="">-- الكل --</option>
+                {% for u in users %}
+                    <option value="{{ u.id }}" {% if request.args.get('user_id')|int == u.id %}selected{% endif %}>{{ u.real_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div>
+            <label style="font-size: 12px; color: #86868b;">القسم / نوع الحركة:</label>
+            <select name="action" class="form-input">
+                <option value="">-- كل الأقسام --</option>
+                <option value="المخزن" {% if request.args.get('action') == 'المخزن' %}selected{% endif %}>المخزن والقماش</option>
+                <option value="موديل" {% if request.args.get('action') == 'موديل' %}selected{% endif %}>التصميم والموديلات</option>
+                <option value="قص" {% if request.args.get('action') == 'قص' %}selected{% endif %}>القص</option>
+                <option value="فرز" {% if request.args.get('action') == 'فرز' %}selected{% endif %}>الفرز والكنترول</option>
+                <option value="دخول" {% if request.args.get('action') == 'دخول' %}selected{% endif %}>تسجيل الدخول</option>
+            </select>
+        </div>
+
+        <div>
+            <label style="font-size: 12px; color: #86868b;">من تاريخ:</label>
+            <input type="date" name="date_from" value="{{ request.args.get('date_from', '') }}" class="form-input">
+        </div>
+
+        <div>
+            <label style="font-size: 12px; color: #86868b;">إلى تاريخ:</label>
+            <input type="date" name="date_to" value="{{ request.args.get('date_to', '') }}" class="form-input">
+        </div>
+
+        <div style="display: flex; gap: 8px;">
+            <button type="submit" class="apple-btn" style="flex: 1;">تطبيق الفلتر</button>
+            <a href="/dashboard/logs" class="apple-btn" style="background: #e8e8ed; color: #1d1d1f; flex: 1;">إلغاء</a>
+        </div>
+    </form>
+</div>
+
+<!-- جدول الحركة -->
+<table class="log-table">
+    <thead>
+        <tr>
+            <th>التاريخ والوقت</th>
+            <th>المستخدم</th>
+            <th>نوع الإجراء</th>
+            <th>التفاصيل</th>
+            <th>IP الجهاز</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for log in logs %}
+        <tr>
+            <td dir="ltr" style="text-align: right; color: #86868b;">{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+            <td><strong>{{ log.user.real_name if log.user else 'غير معروف' }}</strong></td>
+            <td><span class="badge">{{ log.action }}</span></td>
+            <td>{{ log.details }}</td>
+            <td dir="ltr" style="text-align: right; font-size: 11px; color: #86868b;">{{ log.ip_address }}</td>
+        </tr>
+        {% else %}
+        <tr>
+            <td colspan="5" style="text-align: center; color: #86868b; padding: 24px;">لا توجد سجلات مطابقة للفلاتر المحددة.</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
+
+==================================================
+File: ./app/templates/warehouse/index.html
+==================================================
+
+{% extends 'base.html' %}
+{% block content %}
+<style>
+    /* أسلوب تصميم أبل النظيف */
+    .apple-card { background: #ffffff; border-radius: 16px; padding: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.04); border: 1px solid #f1f1f4; margin-bottom: 24px; }
+    .fabric-tabs { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; align-items: center; }
+    .fabric-tab { padding: 10px 20px; background: #f5f5f7; border-radius: 20px; cursor: pointer; text-decoration: none; color: #1d1d1f; font-weight: 600; font-size: 14px; transition: all 0.2s ease; }
+    .fabric-tab.active, .fabric-tab:hover { background: #0071e3; color: white; }
+    .colors-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; }
+    .color-card { background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.04); border: 1px solid #f1f1f4; transition: transform 0.2s; }
+    .color-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
+    .color-box { height: 120px; width: 100%; display: flex; align-items: center; justify-content: center; }
+    .color-details { padding: 16px; text-align: center; }
+    
+    /* النوافذ المنبثقة */
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); z-index: 1000; justify-content: center; align-items: center; }
+    .modal-box { background: white; padding: 32px; border-radius: 20px; width: 100%; max-width: 480px; box-shadow: 0 20px 40px rgba(0,0,0,0.15); animation: scaleIn 0.3s ease; }
+    @keyframes scaleIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    
+    .form-input { width: 100%; padding: 12px 16px; border: 1px solid #d2d2d7; border-radius: 12px; margin-bottom: 16px; font-family: inherit; font-size: 15px; outline: none; box-sizing: border-box; transition: border 0.2s; }
+    .form-input:focus { border-color: #0071e3; }
+    .apple-btn { padding: 12px 24px; border: none; border-radius: 20px; cursor: pointer; font-weight: 600; font-size: 15px; transition: 0.2s; color: white; display: inline-block; text-decoration: none; text-align: center; }
+    .btn-blue { background: #0071e3; } .btn-blue:hover { background: #0077ed; }
+    .btn-gray { background: #e8e8ed; color: #1d1d1f; } .btn-gray:hover { background: #d2d2d7; }
+</style>
+
+<!-- إضافة رابط المخزن في القائمة العلوية -->
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const navLinks = document.querySelector('.nav-links');
+        if(navLinks && !navLinks.innerHTML.includes('المخزن')) {
+            navLinks.innerHTML += '<a href="/warehouse">📦 المخزن</a>';
+        }
+    });
+</script>
+
+<div class="fabric-tabs">
+    {% for f in fabrics %}
+        <a href="?fabric_id={{ f.id }}" class="fabric-tab {% if selected_fabric and selected_fabric.id == f.id %}active{% endif %}">{{ f.name }}</a>
+    {% endfor %}
+    <div style="flex-grow: 1;"></div>
+    <a href="/warehouse/print_inventory" target="_blank" class="apple-btn btn-gray" style="margin-left: 10px;">🖨️ طباعة الجرد</a>
+    <button class="apple-btn btn-blue" onclick="openModal('addModal')">+ استلام قماش</button>
+</div>
+
+{% if selected_fabric %}
+<div class="apple-card" style="display: flex; gap: 24px; align-items: center;">
+    {% if selected_fabric.image_url %}
+        <img src="{{ selected_fabric.image_url }}" alt="صورة القماش" style="width: 140px; height: 140px; border-radius: 16px; object-fit: cover;">
+    {% else %}
+        <div style="width: 140px; height: 140px; border-radius: 16px; background: #f5f5f7; display: flex; align-items: center; justify-content: center; color: #86868b;">بدون صورة</div>
+    {% endif %}
+
+    <div>
+        <h2 style="margin: 0 0 8px 0; color: #1d1d1f;">{{ selected_fabric.name }}</h2>
+        <p style="color: #86868b; margin: 0 0 12px 0;">{{ selected_fabric.description }}</p>
+        <div style="font-size: 18px; font-weight: 600; color: #1d1d1f; margin-bottom: 16px;">إجمالي الرصيد: {{ selected_fabric.colors | sum(attribute='quantity') }} {{ selected_fabric.unit }}</div>
+        <button class="apple-btn btn-gray" onclick="openModal('editFabricModal')" style="padding: 8px 16px; font-size: 13px;">📷 تعديل الصورة</button>
+    </div>
+</div>
+
+<div class="colors-grid">
+    {% for color in selected_fabric.colors %}
+    <div class="color-card">
+        <div class="color-box" style="background-color: {{ color.hex_code if color.hex_code else '#f5f5f7' }};"></div>
+        <div class="color-details">
+            <h4 style="margin: 0 0 8px 0; color: #1d1d1f;">{{ color.color_code }} <span style="font-weight: normal; color: #86868b;">{{ color.color_name or '' }}</span></h4>
+            <div style="font-size: 22px; font-weight: 700; margin-bottom: 4px;">{{ color.quantity }} <span style="font-size: 13px; color: #86868b;">{{ selected_fabric.unit }}</span></div>
+            <div style="font-size: 12px; font-weight: 600; color: #e30000; margin-bottom: 16px; background: #fcebeb; padding: 4px 8px; border-radius: 8px; display: inline-block;">متاح للتصميم: {{ color.quantity - color.reserved_quantity }}</div>
+            <button class="apple-btn btn-gray" style="width: 100%; border-radius: 12px;" onclick="openTransactionModal({{ color.id }}, '{{ color.color_code }}')">صرف / إضافة</button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- نافذة استلام قماش -->
+<div id="addModal" class="modal-overlay">
+    <div class="modal-box">
+        <h3 style="margin-top: 0;">استلام قماش جديد</h3>
+        <form action="/warehouse/add" method="POST" enctype="multipart/form-data">
+            <select name="fabric_id" id="fabricSelect" class="form-input" onchange="toggleNewFabricFields()">
+                <option value="">-- خامة جديدة --</option>
+                {% for f in fabrics %}
+                    <option value="{{ f.id }}" {% if selected_fabric and f.id == selected_fabric.id %}selected{% endif %}>{{ f.name }}</option>
+                {% endfor %}
+            </select>
+
+            <!-- القسم السفلي يظهر فقط عند اختيار "خامة جديدة" -->
+            <div id="newFabricFields" style="display: none; background: #f5f5f7; padding: 16px; border-radius: 12px; margin-bottom: 16px;">
+                <input type="text" name="new_fabric_name" class="form-input" placeholder="اسم الخامة الجديدة">
+                <select name="unit" class="form-input">
+                    <option value="توب">توب</option>
+                    <option value="كيلو">كيلو</option>
+                    <option value="متر">متر</option>
+                </select>
+                <label style="font-size: 13px; color: #86868b;">صورة الخامة:</label>
+                <input type="file" name="fabric_image" accept="image/*" class="form-input">
+            </div>
+
+            <div style="display: flex; gap: 12px;">
+                <input type="text" name="color_code" class="form-input" placeholder="كود اللون (إجباري)" required>
+                <input type="text" name="color_name" class="form-input" placeholder="اسم اللون">
+            </div>
+            <input type="number" step="0.01" name="quantity" class="form-input" required placeholder="الكمية المستلمة">
+            
+            <div style="display: flex; gap: 12px; margin-top: 16px;">
+                <button type="submit" class="apple-btn btn-blue" style="flex: 1;">حفظ</button>
+                <button type="button" class="apple-btn btn-gray" style="flex: 1;" onclick="closeModal('addModal')">إلغاء</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- نافذة المعاملات -->
+<div id="transactionModal" class="modal-overlay">
+    <div class="modal-box">
+        <h3 style="margin-top: 0;">تحديث الكمية: <span id="transCode"></span></h3>
+        <form action="/warehouse/transaction" method="POST">
+            <input type="hidden" name="color_id" id="transColorId">
+            <select name="operation" class="form-input">
+                <option value="deduct">صرف للمقص / استعواض (-)</option>
+                <option value="add">إضافة / مرتجع (+)</option>
+            </select>
+            <input type="number" step="0.01" name="amount" class="form-input" required placeholder="الكمية">
+            <input type="text" name="notes" class="form-input" placeholder="ملاحظات / السبب">
+            
+            <div style="display: flex; gap: 12px; margin-top: 16px;">
+                <button type="submit" class="apple-btn btn-blue" style="flex: 1;">تنفيذ</button>
+                <button type="button" class="apple-btn btn-gray" style="flex: 1;" onclick="closeModal('transactionModal')">إلغاء</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- نافذة تعديل الصورة -->
+{% if selected_fabric %}
+<div id="editFabricModal" class="modal-overlay">
+    <div class="modal-box">
+        <h3 style="margin-top: 0;">تعديل الصورة</h3>
+        <form action="/warehouse/edit_fabric" method="POST" enctype="multipart/form-data">
+            <input type="hidden" name="fabric_id" value="{{ selected_fabric.id }}">
+            <input type="file" name="fabric_image" accept="image/*" class="form-input" required>
+            <div style="display: flex; gap: 12px;">
+                <button type="submit" class="apple-btn btn-blue" style="flex: 1;">تحديث</button>
+                <button type="button" class="apple-btn btn-gray" style="flex: 1;" onclick="closeModal('editFabricModal')">إلغاء</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+<script>
+    function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+    function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+    function openTransactionModal(colorId, colorCode) {
+        document.getElementById('transColorId').value = colorId;
+        document.getElementById('transCode').innerText = colorCode;
+        openModal('transactionModal');
+    }
+    function toggleNewFabricFields() {
+        var select = document.getElementById('fabricSelect');
+        document.getElementById('newFabricFields').style.display = (select.value === "") ? "block" : "none";
+    }
+    // تفعيل فحص القسم السفلي عند التحميل
+    document.addEventListener("DOMContentLoaded", toggleNewFabricFields);
+</script>
+{% endblock %}
+
+==================================================
+File: ./app/templates/warehouse/print_inventory.html
+==================================================
+
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>جرد المخزن</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; color: #1d1d1f; }
+        .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #1d1d1f; padding-bottom: 15px; }
+        .date { font-size: 14px; color: #86868b; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 14px; }
+        th, td { border: 1px solid #d2d2d7; padding: 10px; text-align: right; }
+        th { background-color: #f5f5f7; font-weight: 600; }
+        .fabric-title { background-color: #e8e8ed; font-weight: 700; text-align: center; font-size: 16px; }
+        .print-btn { display: block; width: 200px; margin: 20px auto; padding: 12px; text-align: center; background: #0071e3; color: white; text-decoration: none; border-radius: 20px; cursor: pointer; border: none; font-size: 15px; font-weight: 600; }
+        
+        @media print {
+            .print-btn { display: none; }
+            body { margin: 0; }
+            @page { margin: 1cm; }
+        }
+    </style>
+</head>
+<body>
+
+    <button class="print-btn" onclick="window.print()">🖨️ طباعة الجرد الآن</button>
+
+    <div class="header">
+        <h1>🏭 تقرير جرد مخزن القماش والأنشطة</h1>
+        <p class="date">تاريخ الطباعة: <span id="currentDate"></span></p>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>كود اللون</th>
+                <th>اسم اللون</th>
+                <th>الرصيد الفعلي</th>
+                <th>الكمية المحجوزة</th>
+                <th>المتاح للتصميم</th>
+                <th>المورد</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for f in fabrics %}
+                <tr>
+                    <td colspan="6" class="fabric-title">خامة: {{ f.name }} (الوحدة: {{ f.unit }})</td>
+                </tr>
+                {% for c in f.colors %}
+                <tr>
+                    <td>
+                        <span style="display:inline-block; width:10px; height:10px; background:{{ c.hex_code or '#ccc' }}; border-radius:50%; margin-left:5px;"></span>
+                        {{ c.color_code }}
+                    </td>
+                    <td>{{ c.color_name or '---' }}</td>
+                    <td style="font-weight: bold;">{{ c.quantity }} {{ f.unit }}</td>
+                    <td style="color: #86868b;">{{ c.reserved_quantity }} {{ f.unit }}</td>
+                    <td style="color: #0071e3; font-weight: bold;">{{ c.quantity - c.reserved_quantity }} {{ f.unit }}</td>
+                    <td>{{ f.supplier.name if f.supplier else '---' }}</td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="6" style="text-align: center;">لا توجد خامات مسجلة في المخزن</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <script>
+        document.getElementById('currentDate').innerText = new Date().toLocaleDateString('ar-EG');
+    </script>
+</body>
+</html>
+
+==================================================
+File: ./app/templates/qc/index.html
+==================================================
+
+{% extends 'base.html' %}
+{% block content %}
+<style>
+    .qc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+    .qc-card { background: white; border-radius: 16px; overflow: hidden; border: 1px solid #f1f1f4; box-shadow: 0 4px 12px rgba(0,0,0,0.04); }
+    .qc-image { width: 100%; height: 220px; object-fit: cover; background: #f5f5f7; }
+    .qc-info { padding: 16px; }
+    .apple-btn { padding: 10px 16px; border: none; border-radius: 12px; cursor: pointer; font-weight: 600; font-size: 14px; background: #af52de; color: white; text-decoration: none; display: block; text-align: center; }
+</style>
+
+<h2 style="margin-bottom: 8px;">🔍 قسم الفرز والكنترول</h2>
+<p style="color: #86868b; margin-bottom: 24px;">الموديلات الناتجة من قسم القص والمطلوب عدها وفرز الهالك منها.</p>
+
+<div class="qc-grid">
+    {% for model in models %}
+    <div class="qc-card">
+        <img src="{{ model.image_url }}" class="qc-image">
+        <div class="qc-info">
+            <h3 style="margin: 0 0 8px 0;">موديل: {{ model.model_code }}</h3>
+            <a href="/qc/model/{{ model.id }}" class="apple-btn">بدء العد والفرز</a>
+        </div>
+    </div>
+    {% else %}
+    <p style="color: #86868b;">لا توجد موديلات في انتظار الفرز حالياً.</p>
+    {% endfor %}
+</div>
+{% endblock %}
+
+==================================================
+File: ./app/templates/qc/details.html
+==================================================
+
+{% extends 'base.html' %}
+{% block content %}
+<style>
+    .apple-card { background: white; border-radius: 16px; padding: 20px; border: 1px solid #f1f1f4; box-shadow: 0 4px 12px rgba(0,0,0,0.03); margin-bottom: 20px; }
+    .apple-btn { padding: 12px 24px; border: none; border-radius: 12px; cursor: pointer; font-weight: 600; font-size: 14px; background: #af52de; color: white; width: 100%; }
+</style>
+
+<div style="margin-bottom: 16px;"><a href="/qc" style="color: #0071e3; text-decoration: none; font-weight: 600;">← العودة لقائمة الفرز</a></div>
+
+<div class="apple-card" style="display: flex; gap: 20px; align-items: center;">
+    <img src="{{ model.image_url }}" style="width: 120px; height: 120px; border-radius: 12px; object-fit: cover;">
+    <div>
+        <h2 style="margin: 0 0 6px 0;">فرز موديل: {{ model.model_code }}</h2>
+        <p style="color: #86868b; margin: 0;">جاهز للعد النهائي وتصفية القطع السليمة من الهالك.</p>
+    </div>
+</div>
+
+<div class="apple-card">
+    <form action="/qc/model/{{ model.id }}/finish" method="POST" onsubmit="return confirm('تأكيد إنهاء الفرز والتحويل للرحلة التالية؟');">
+        <button type="submit" class="apple-btn" style="background: #34c759;">✔️ إنهاء الفرز والاعتماد النهائي</button>
+    </form>
+</div>
+{% endblock %}
+
+==================================================
+File: ./app/templates/cutting/index.html
+==================================================
+
+{% extends 'base.html' %}
+{% block content %}
+<style>
+    .cutting-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+    .cutting-card { background: white; border-radius: 16px; overflow: hidden; border: 1px solid #f1f1f4; box-shadow: 0 4px 12px rgba(0,0,0,0.04); }
+    .cutting-image { width: 100%; height: 220px; object-fit: cover; background: #f5f5f7; }
+    .cutting-info { padding: 16px; }
+    .apple-btn { padding: 10px 16px; border: none; border-radius: 12px; cursor: pointer; font-weight: 600; font-size: 14px; background: #ff3b30; color: white; text-decoration: none; display: block; text-align: center; }
+</style>
+
+<h2 style="margin-bottom: 8px;">✂️ قسم القص</h2>
+<p style="color: #86868b; margin-bottom: 24px;">الموديلات الجاهزة للقص ومسحوب قماشها من التخطيط.</p>
+
+<div class="cutting-grid">
+    {% for model in models %}
+    <div class="cutting-card">
+        <img src="{{ model.image_url }}" class="cutting-image">
+        <div class="cutting-info">
+            <h3 style="margin: 0 0 8px 0;">موديل: {{ model.model_code }}</h3>
+            <p style="font-size: 14px; color: #86868b; margin-bottom: 16px;">النوع: {{ model.model_type or 'غير محدد' }}</p>
+            <a href="/cutting/model/{{ model.id }}" class="apple-btn">تسجيل وتسليم القص</a>
+        </div>
+    </div>
+    {% else %}
+    <p style="color: #86868b;">لا توجد طلبيات جاهزة للقص حالياً.</p>
+    {% endfor %}
+</div>
+{% endblock %}
+
+==================================================
+File: ./app/templates/cutting/details.html
+==================================================
+
+{% extends 'base.html' %}
+{% block content %}
+<style>
+    .apple-card { background: white; border-radius: 16px; padding: 20px; border: 1px solid #f1f1f4; box-shadow: 0 4px 12px rgba(0,0,0,0.03); margin-bottom: 20px; }
+    .form-input { width: 100%; padding: 10px; border: 1px solid #d2d2d7; border-radius: 10px; font-family: inherit; font-size: 14px; box-sizing: border-box; margin-bottom: 12px; }
+    .apple-btn { padding: 10px 20px; border: none; border-radius: 12px; cursor: pointer; font-weight: 600; font-size: 14px; background: #0071e3; color: white; width: 100%; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border-bottom: 1px solid #f1f1f4; padding: 10px; text-align: right; font-size: 14px; }
+    th { background: #f5f5f7; color: #86868b; }
+</style>
+
+<div style="margin-bottom: 16px;"><a href="/cutting" style="color: #0071e3; text-decoration: none; font-weight: 600;">← العودة لقائمة القص</a></div>
+
+<div style="display: flex; gap: 20px; flex-wrap: wrap;">
+    <div style="flex: 1; min-width: 350px;" class="apple-card">
+        <h3 style="margin-top: 0; color: #ff3b30;">📝 تسجيل تسجيلة القص</h3>
+        <form action="/cutting/model/{{ model.id }}/add_record" method="POST">
+            <select name="color_name" class="form-input" required>
+                <option value="">-- اختر القطعة واللون --</option>
+                {% for req in model.requirements %}
+                    <option value="{{ req.color.color_code }} ({{ req.part_name }})">{{ req.color.color_code }} - {{ req.part_name }}</option>
+                {% endfor %}
+            </select>
+            <input type="text" name="cutter_name" class="form-input" placeholder="اسم المقصدار" required>
+            <div style="display: flex; gap: 10px;">
+                <input type="number" name="layers_count" class="form-input" placeholder="عدد الرقات" required>
+                <input type="number" step="0.01" name="layer_weight" class="form-input" placeholder="وزن الراق (كجم)" required>
+            </div>
+            <input type="number" name="pieces_count" class="form-input" placeholder="عدد القطع الناتج" required>
+            <input type="text" name="shade_degree" class="form-input" placeholder="درجة الصبغة (اختياري)">
+            <button type="submit" class="apple-btn">+ إضافة راق</button>
+        </form>
+    </div>
+
+    <div style="flex: 1; min-width: 350px;" class="apple-card">
+        <h3 style="margin-top: 0;">سجل القص للموديل: {{ model.model_code }}</h3>
+        <table>
+            <tr><th>اللون/القطعة</th><th>المقصدار</th><th>الرقات</th><th>القطع</th></tr>
+            {% for rec in model.cutting_records %}
+            <tr>
+                <td>{{ rec.color_name }}</td>
+                <td>{{ rec.cutter_name }}</td>
+                <td>{{ rec.layers_count }}</td>
+                <td><strong>{{ rec.pieces_count }}</strong></td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" style="color: #86868b; text-align: center;">لم يتم تسجيل أرقام قص بعد.</td></tr>
+            {% endfor %}
+        </table>
+
+        <form action="/cutting/model/{{ model.id }}/finish" method="POST" style="margin-top: 24px;" onsubmit="return confirm('تأكيد إنهاء القص والتحويل للفرز؟');">
+            <button type="submit" class="apple-btn" style="background: #34c759;">✔️ إنهاء القص والتحويل للفرز</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+==================================================
+File: ./app/warehouse/routes.py
+==================================================
+
+import os
+from flask import Blueprint, render_template, request, redirect, url_for, current_app
+from werkzeug.utils import secure_filename
+from app.models import db, Fabric, FabricColor, FabricTransaction, Supplier
+
+warehouse_bp = Blueprint('warehouse', __name__, url_prefix='/warehouse')
+
+@warehouse_bp.route('/')
+def index():
+    fabrics = Fabric.query.all()
+    suppliers = Supplier.query.all()
+    selected_fabric_id = request.args.get('fabric_id', type=int)
+
+    selected_fabric = None
+    if selected_fabric_id:
+        selected_fabric = Fabric.query.get(selected_fabric_id)
+    elif fabrics:
+        selected_fabric = fabrics[0]
+
+    return render_template('warehouse/index.html', fabrics=fabrics, selected_fabric=selected_fabric, suppliers=suppliers)
+
+@warehouse_bp.route('/add', methods=['POST'])
+def add_fabric():
+    fabric_id = request.form.get('fabric_id')
+    new_fabric_name = request.form.get('new_fabric_name')
+
+    if not fabric_id and not new_fabric_name:
+        return redirect(url_for('warehouse.index'))
+
+    if new_fabric_name:
+        unit = request.form.get('unit')
+        desc = request.form.get('description')
+        supplier_id = request.form.get('supplier_id') or None
+
+        fabric = Fabric(name=new_fabric_name, unit=unit, description=desc, supplier_id=supplier_id)
+        db.session.add(fabric)
+        db.session.flush()
+
+        file = request.files.get('fabric_image')
+        if file and file.filename != '':
+            filename = secure_filename(file.filename)
+            upload_dir = os.path.join(current_app.root_path, 'static', 'uploads')
+            os.makedirs(upload_dir, exist_ok=True)
+            file.save(os.path.join(upload_dir, filename))
+            fabric.image_url = f'/static/uploads/{filename}'
+
+        db.session.commit()
+    else:
+        fabric = Fabric.query.get(fabric_id)
+        if not fabric:
+            return redirect(url_for('warehouse.index'))
+
+    color_code = request.form.get('color_code')
+    color_name = request.form.get('color_name')
+    hex_code = request.form.get('hex_code', None) or None
+
+    try:
+        price = float(request.form.get('price_per_unit', 0))
+    except ValueError:
+        price = 0.0
+
+    try:
+        quantity = float(request.form.get('quantity', 0))
+    except ValueError:
+        quantity = 0.0
+
+    existing_color = FabricColor.query.filter_by(fabric_id=fabric.id, color_code=color_code).first()
+
+    if existing_color:
+        existing_color.quantity += quantity
+        if hex_code:
+            existing_color.hex_code = hex_code
+        if color_name:
+            existing_color.color_name = color_name
+        if price > 0:
+            existing_color.price_per_unit = price
+    else:
+        color = FabricColor(fabric_id=fabric.id, color_code=color_code, color_name=color_name, hex_code=hex_code, price_per_unit=price, quantity=quantity)
+        db.session.add(color)
+
+    db.session.commit()
+    return redirect(url_for('warehouse.index', fabric_id=fabric.id))
+
+@warehouse_bp.route('/edit_fabric', methods=['POST'])
+def edit_fabric():
+    fabric_id = request.form.get('fabric_id')
+    fabric = Fabric.query.get(fabric_id)
+    if fabric:
+        file = request.files.get('fabric_image')
+        if file and file.filename != '':
+            filename = secure_filename(file.filename)
+            upload_dir = os.path.join(current_app.root_path, 'static', 'uploads')
+            os.makedirs(upload_dir, exist_ok=True)
+            file.save(os.path.join(upload_dir, filename))
+            fabric.image_url = f'/static/uploads/{filename}'
+            db.session.commit()
+    return redirect(url_for('warehouse.index', fabric_id=fabric_id))
+
+@warehouse_bp.route('/transaction', methods=['POST'])
+def transaction():
+    color_id = request.form.get('color_id')
+    operation = request.form.get('operation')
+    try:
+        amount = float(request.form.get('amount', 0))
+    except ValueError:
+        amount = 0.0
+    model_code_ref = request.form.get('model_code_ref')
+    notes = request.form.get('notes')
+
+    color = FabricColor.query.get(color_id)
+    if color and amount > 0:
+        if operation == 'add':
+            color.quantity += amount
+        elif operation == 'deduct':
+            if color.quantity >= amount:
+                color.quantity -= amount
+            else:
+                return redirect(url_for('warehouse.index', fabric_id=color.fabric_id))
+        trans = FabricTransaction(color_id=color.id, operation=operation, amount=amount, model_code_ref=model_code_ref, notes=notes)
+        db.session.add(trans)
+        db.session.commit()
+        return redirect(url_for('warehouse.index', fabric_id=color.fabric_id))
+    return redirect(url_for('warehouse.index'))
+
+@warehouse_bp.route('/print_inventory')
+def print_inventory():
+    fabrics = Fabric.query.all()
+    return render_template('warehouse/print_inventory.html', fabrics=fabrics)
+
+==================================================
+File: ./app/qc/routes.py
+==================================================
+
+from flask import Blueprint, render_template, request, redirect, url_for
+from app.models import db, DesignModel, QCRecord, SizeDef, log_action
+
+qc_bp = Blueprint('qc', __name__, url_prefix='/qc')
+
+@qc_bp.route('/')
+def index():
+    models = DesignModel.query.filter_by(status='فرز وكنترول', is_deleted=False).all()
+    log_action("زيارة قسم", "فتح قائمة الفرز والكنترول")
+    return render_template('qc/index.html', models=models)
+
+@qc_bp.route('/model/<int:model_id>')
+def model_details(model_id):
+    model = DesignModel.query.get_or_404(model_id)
+    sizes = SizeDef.query.all()
+    colors = []
+    for req in model.requirements:
+        color_name = f"{req.color.color_code} ({req.part_name})"
+        if color_name not in colors:
+            colors.append(color_name)
+
+    return render_template('qc/details.html', model=model, sizes=sizes, colors=colors)
+
+@qc_bp.route('/model/<int:model_id>/finish', methods=['POST'])
+def finish_qc(model_id):
+    model = DesignModel.query.get_or_404(model_id)
+    model.status = 'جاهز للطباعة / التجميع'
+    db.session.commit()
+    log_action("إنهاء الفرز", f"تم إنهاء الفرز للموديل {model.model_code}")
+    return redirect(url_for('qc.index'))
+
+==================================================
+File: ./app/cutting/routes.py
+==================================================
+
+from flask import Blueprint, render_template, request, redirect, url_for
+from app.models import db, DesignModel, CuttingRecord, log_action
+
+cutting_bp = Blueprint('cutting', __name__, url_prefix='/cutting')
+
+@cutting_bp.route('/')
+def index():
+    models = DesignModel.query.filter_by(status='في القص', is_deleted=False).all()
+    log_action("زيارة قسم", "فتح قائمة القص")
+    return render_template('cutting/index.html', models=models)
+
+@cutting_bp.route('/model/<int:model_id>')
+def model_details(model_id):
+    model = DesignModel.query.get_or_404(model_id)
+    return render_template('cutting/details.html', model=model)
+
+@cutting_bp.route('/model/<int:model_id>/add_record', methods=['POST'])
+def add_record(model_id):
+    color_name = request.form.get('color_name')
+    cutter_name = request.form.get('cutter_name')
+    layers_count = request.form.get('layers_count', type=int)
+    layer_weight = request.form.get('layer_weight', type=float)
+    pieces_count = request.form.get('pieces_count', type=int)
+    shade_degree = request.form.get('shade_degree')
+
+    record = CuttingRecord(
+        model_id=model_id,
+        color_name=color_name,
+        cutter_name=cutter_name,
+        layers_count=layers_count,
+        layer_weight=layer_weight,
+        pieces_count=pieces_count,
+        shade_degree=shade_degree
+    )
+    db.session.add(record)
+    db.session.commit()
+
+    log_action("تسجيل قص", f"تم تسجيل قص لـ {color_name} بعدد {pieces_count} قطعة")
+    return redirect(url_for('cutting.model_details', model_id=model_id))
+
+@cutting_bp.route('/model/<int:model_id>/finish', methods=['POST'])
+def finish_cutting(model_id):
+    model = DesignModel.query.get_or_404(model_id)
+    model.status = 'فرز وكنترول'
+    db.session.commit()
+    log_action("إنهاء قص", f"تم إنهاء القص للموديل {model.model_code} وتحويله للفرز")
+    return redirect(url_for('cutting.index'))

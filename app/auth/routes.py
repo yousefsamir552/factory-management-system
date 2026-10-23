@@ -12,6 +12,8 @@ def login():
 
         user = User.query.filter_by(username=username).first()
         if user and check_password_hash(user.password, password):
+            if not user.is_active:
+                return render_template('auth/login.html', error="تم إيقاف هذا الحساب، راجع الإدارة.")
             session['user_id'] = user.id
             session['username'] = user.username
             session['real_name'] = user.real_name

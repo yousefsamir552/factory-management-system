@@ -32,6 +32,7 @@ def model_inventory():
 def add_model():
     model_code = request.form.get('model_code')
     model_type = request.form.get('model_type')
+    sizes_selected = request.form.get('sizes_selected')
     file = request.files.get('model_image')
 
     if file and file.filename != '':
@@ -41,7 +42,7 @@ def add_model():
         file.save(os.path.join(upload_dir, filename))
         image_url = f'/static/uploads/{filename}'
 
-        new_model = DesignModel(model_code=model_code, model_type=model_type, image_url=image_url)
+        new_model = DesignModel(model_code=model_code, model_type=model_type, sizes_selected=sizes_selected, image_url=image_url)
         db.session.add(new_model)
         db.session.commit()
 
@@ -82,23 +83,51 @@ def add_accessory(model_id):
 @design_bp.route('/model/<int:model_id>/plan_quantities', methods=['POST'])
 def plan_quantities(model_id):
     model = DesignModel.query.get_or_404(model_id)
+    # حجز كميات القماش
     for req in model.requirements:
         val = request.form.get(f'req_{req.id}', type=float)
         if val is not None:
+            diff = val - req.planned_quantity
+            req.color.reserved_quantity += diff
             req.planned_quantity = val
+            
+    # حجز الإكسسوارات
     for acc in model.accessories:
         val = request.form.get(f'acc_{acc.id}', type=float)
         if val is not None:
             acc.planned_quantity = val
+
+    model.sizes_selected = request.form.get('sizes_selected')
+    model.main_marker_url = request.form.get('main_marker_url')
+    model.print_marker_url = request.form.get('print_marker_url')
+    model.notes_shirt = request.form.get('notes_shirt')
+
     db.session.commit()
-    log_action("تخطيط كميات", f"تم حجز وتحديث كميات للموديل {model.model_code}")
+    log_action("تخطيط كميات", f"تم حجز كميات للموديل {model.model_code}")
     return redirect(url_for('design.model_details', model_id=model_id))
 
 @design_bp.route('/model/<int:model_id>/issue', methods=['POST'])
 def issue_fabric(model_id):
     model = DesignModel.query.get_or_404(model_id)
+    
+    # خصم الكميات المحجوزة من المخزن الفعلي عند الصرف
+    for req in model.requirements:
+        if req.planned_quantity > 0:
+            req.color.quantity -= req.planned_quantity
+            req.color.reserved_quantity -= req.planned_quantity
+            
+            # تسجيل حركة الصرف في الدفتر
+            from app.models import FabricTransaction
+            trans = FabricTransaction(color_id=req.color_id, operation='deduct', amount=req.planned_quantity, model_code_ref=model.model_code, notes="صرف تلقائي للقص")
+            db.session.add(trans)
+
     model.status = 'في القص'
     model.cut_at = get_egypt_time()
     db.session.commit()
-    log_action("صرف قماش", f"تم صرف القماش وتحويل الموديل {model.model_code} إلى قسم القص")
+    log_action("صرف قماش", f"تم صرف قماش الموديل {model.model_code} وتحويله للقص")
     return redirect(url_for('design.model_details', model_id=model_id))
+
+@design_bp.route('/inventory/model/<int:model_id>')
+def inventory_model_details(model_id):
+    model = DesignModel.query.get_or_404(model_id)
+    return render_template('design/inventory_details.html', model=model) # اصنع ملف HTML بسيط يعرض البيانات بدون جداول ادخال

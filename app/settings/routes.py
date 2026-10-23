@@ -3,6 +3,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, sessio
 from werkzeug.security import generate_password_hash
 from app.models import db, Supplier, SizeDef, PrintShop, User, AuditLog
 from datetime import datetime
+from app.models import log_action
 
 settings_bp = Blueprint('settings', __name__, url_prefix='/settings')
 
@@ -126,4 +127,33 @@ def add_printshop():
     if name and not PrintShop.query.filter_by(name=name).first():
         db.session.add(PrintShop(name=name))
         db.session.commit()
+    return redirect(url_for('settings.index'))
+
+@settings_bp.route('/toggle_active/<int:user_id>')
+def toggle_active(user_id):
+    if session.get('role') != 'sudo':
+        return "غير مصرح", 403
+        
+    user = User.query.get_or_404(user_id)
+    user.is_active = not user.is_active
+    db.session.commit()
+    
+    status = 'تفعيل' if user.is_active else 'إيقاف'
+    log_action("تعديل حساب", f"تم {status} حساب الموظف {user.username}")
+    
+    return redirect(url_for('settings.index'))
+
+@settings_bp.route('/change_pass/<int:user_id>', methods=['POST'])
+def change_pass(user_id):
+    if session.get('role') != 'sudo':
+        return "غير مصرح", 403
+        
+    user = User.query.get_or_404(user_id)
+    new_password = request.form.get('new_password')
+    
+    user.password = generate_password_hash(new_password, method='pbkdf2:sha256')
+    db.session.commit()
+    
+    log_action("تعديل حساب", f"تم تغيير باسورد حساب الموظف {user.username}")
+    
     return redirect(url_for('settings.index'))

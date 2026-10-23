@@ -19,50 +19,39 @@
 
 <!-- 1. إدارة حسابات الموظفين والصلاحيات -->
 <div class="apple-card">
-    <h3 style="margin-top: 0;">👥 الحسابات المسجلة والصلاحيات</h3>
-    
+    <h3 style="margin-top: 0;">👥 إدارة الحسابات والصلاحيات</h3>
     <table class="perm-table">
         <thead>
             <tr>
-                <th>الاسم الحقيقي</th>
-                <th>اسم المستخدم</th>
-                <th>النوع</th>
-                <th>صلاحيات الأقسام (مشاهدة / تعديل)</th>
-                <th>تعديل الصلاحيات</th>
+                <th>الموظف</th>
+                <th>نوع الحساب</th>
+                <th>إجراءات الحساب (تعديل سريع)</th>
             </tr>
         </thead>
         <tbody>
             {% for u in users %}
             <tr>
-                <td><strong>{{ u.real_name }}</strong></td>
-                <td>{{ u.username }}</td>
-                <td><span style="background: #e8e8ed; padding: 2px 8px; border-radius: 8px;">{{ u.role }}</span></td>
-                <td>
-                    {% if u.role == 'sudo' %}
-                        <span style="color: #34c759; font-weight: 600;">كامل الصلاحيات (Sudo)</span>
-                    {% elif u.role == 'owner' %}
-                        <span style="color: #0071e3; font-weight: 600;">مشاهدة فقط لجميع الأقسام</span>
-                    {% else %}
-                        {% for sec, ptype in u.parsed_perms.items() %}
-                            <span style="font-size: 11px; background: #f5f5f7; padding: 2px 6px; border-radius: 6px; margin-left: 4px;">
-                                {{ sec }}: <strong>{% if ptype == 'edit' %}تعديل ومشاهدة{% else %}مشاهدة فقط{% endif %}</strong>
-                            </span>
-                        {% else %}
-                            <span style="color: #86868b;">بدون صلاحيات</span>
-                        {% endfor %}
-                    {% endif %}
-                </td>
+                <td><strong>{{ u.real_name }}</strong> <span style="color:#86868b; font-size:12px;">({{ u.username }})</span></td>
+                <td><span style="background: #e8e8ed; padding: 4px 10px; border-radius: 12px; font-size:12px; font-weight:600;">{{ u.role }}</span></td>
                 <td>
                     {% if u.role == 'staff' %}
-                    <form action="/settings/edit_user_permissions/{{ u.id }}" method="POST" style="display: flex; gap: 8px; align-items: center;">
-                        <select name="perm_warehouse" style="font-size: 11px;"><option value="">المخزن: بدون</option><option value="view" {% if u.parsed_perms.get('warehouse')=='view' %}selected{% endif %}>مشاهدة</option><option value="edit" {% if u.parsed_perms.get('warehouse')=='edit' %}selected{% endif %}>تعديل</option></select>
-                        <select name="perm_design" style="font-size: 11px;"><option value="">التصميم: بدون</option><option value="view" {% if u.parsed_perms.get('design')=='view' %}selected{% endif %}>مشاهدة</option><option value="edit" {% if u.parsed_perms.get('design')=='edit' %}selected{% endif %}>تعديل</option></select>
-                        <select name="perm_cutting" style="font-size: 11px;"><option value="">القص: بدون</option><option value="view" {% if u.parsed_perms.get('cutting')=='view' %}selected{% endif %}>مشاهدة</option><option value="edit" {% if u.parsed_perms.get('cutting')=='edit' %}selected{% endif %}>تعديل</option></select>
-                        <select name="perm_qc" style="font-size: 11px;"><option value="">الفرز: بدون</option><option value="view" {% if u.parsed_perms.get('qc')=='view' %}selected{% endif %}>مشاهدة</option><option value="edit" {% if u.parsed_perms.get('qc')=='edit' %}selected{% endif %}>تعديل</option></select>
-                        <button type="submit" class="apple-btn" style="padding: 4px 8px; font-size: 11px;">تحديث</button>
-                    </form>
+                    <div style="display: flex; gap: 8px; align-items: center; justify-content: flex-end; flex-wrap: wrap;">
+                        <a href="/settings/toggle_active/{{ u.id }}" class="apple-btn" style="padding: 6px 12px; font-size: 12px; background: {% if u.is_active %}#ff3b30{% else %}#34c759{% endif %};">
+                            {% if u.is_active %}إيقاف 🚫{% else %}تفعيل ✅{% endif %}
+                        </a>
+                        <form action="/settings/change_pass/{{ u.id }}" method="POST" style="margin:0; display:flex; gap:4px;">
+                            <input type="password" name="new_password" placeholder="باسورد جديد" class="form-input" style="width: 100px; padding: 6px; margin:0;" required>
+                            <button type="submit" class="apple-btn" style="padding: 6px 12px; font-size: 12px; background: #8e8e93;">تغيير</button>
+                        </form>
+                        <form action="/settings/edit_user_permissions/{{ u.id }}" method="POST" style="margin:0; display:flex; gap:4px; background:#f5f5f7; padding:4px; border-radius:8px;">
+                            <select name="perm_warehouse" style="font-size: 11px; border:none; background:transparent;"><option value="">مخزن: ❌</option><option value="view" {% if u.parsed_perms.get('warehouse')=='view' %}selected{% endif %}>مخزن: 👁️</option><option value="edit" {% if u.parsed_perms.get('warehouse')=='edit' %}selected{% endif %}>مخزن: ✏️</option></select>
+                            <select name="perm_design" style="font-size: 11px; border:none; background:transparent;"><option value="">تصميم: ❌</option><option value="view" {% if u.parsed_perms.get('design')=='view' %}selected{% endif %}>تصميم: 👁️</option><option value="edit" {% if u.parsed_perms.get('design')=='edit' %}selected{% endif %}>تصميم: ✏️</option></select>
+                            <select name="perm_cutting" style="font-size: 11px; border:none; background:transparent;"><option value="">قص: ❌</option><option value="view" {% if u.parsed_perms.get('cutting')=='view' %}selected{% endif %}>قص: 👁️</option><option value="edit" {% if u.parsed_perms.get('cutting')=='edit' %}selected{% endif %}>قص: ✏️</option></select>
+                            <button type="submit" class="apple-btn" style="padding: 6px 12px; font-size: 12px; background: #0071e3;">حفظ الصلاحيات</button>
+                        </form>
+                    </div>
                     {% else %}
-                        ---
+                    <span style="color: #34c759; font-weight: 600; font-size:12px;">مُدير نظام (غير قابل للتعديل)</span>
                     {% endif %}
                 </td>
             </tr>
@@ -70,31 +59,24 @@
         </tbody>
     </table>
 
-    <hr style="border: 0; border-top: 1px solid #f5f5f7; margin: 20px 0;">
+    <hr style="border: 0; border-top: 1px solid #f5f5f7; margin: 24px 0;">
 
-    <h4>➕ إنشاء حساب جديد</h4>
-    <form action="/settings/add_user" method="POST">
-        <div style="display: flex; gap: 12px; margin-bottom: 12px;">
-            <input type="text" name="real_name" class="form-input" placeholder="الاسم الحقيقي" required>
-            <input type="text" name="username" class="form-input" placeholder="اسم المستخدم" required>
-            <input type="password" name="password" class="form-input" placeholder="كلمة المرور" required>
-            <select name="role" class="form-input" required>
-                <option value="staff">موظف (Staff)</option>
-                <option value="owner">مالك (Owner)</option>
-            </select>
+    <h4 style="margin-top:0;">➕ إنشاء حساب جديد</h4>
+    <form action="/settings/add_user" method="POST" style="background: #fafafa; padding: 16px; border-radius: 12px; border: 1px solid #f1f1f4;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 12px;">
+            <input type="text" name="real_name" class="form-input" style="margin:0;" placeholder="الاسم الحقيقي" required>
+            <input type="text" name="username" class="form-input" style="margin:0;" placeholder="اسم المستخدم" required>
+            <input type="password" name="password" class="form-input" style="margin:0;" placeholder="كلمة المرور" required>
+            <select name="role" class="form-input" style="margin:0;" required><option value="staff">موظف (Staff)</option><option value="owner">مالك (Owner - مشاهدة فقط)</option></select>
         </div>
-
-        <div style="background: #f5f5f7; padding: 12px; border-radius: 12px; font-size: 13px; margin-bottom: 12px;">
-            <strong>حدد صلاحيات الموظف بالتفصيل:</strong>
-            <div style="display: flex; gap: 16px; margin-top: 8px;">
-                <div>📦 المخزن: <select name="perm_warehouse"><option value="">بدون</option><option value="view">مشاهدة فقط</option><option value="edit">مشاهدة وتعديل</option></select></div>
-                <div>🎨 التصميم: <select name="perm_design"><option value="">بدون</option><option value="view">مشاهدة فقط</option><option value="edit">مشاهدة وتعديل</option></select></div>
-                <div>✂️ القص: <select name="perm_cutting"><option value="">بدون</option><option value="view">مشاهدة فقط</option><option value="edit">مشاهدة وتعديل</option></select></div>
-                <div>🔍 الفرز: <select name="perm_qc"><option value="">بدون</option><option value="view">مشاهدة فقط</option><option value="edit">مشاهدة وتعديل</option></select></div>
-            </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: center; margin-bottom: 16px; font-size: 13px;">
+            <strong style="color: #1d1d1f;">الصلاحيات:</strong>
+            <div>📦 مخزن: <select name="perm_warehouse" style="padding:4px;"><option value="">بدون</option><option value="view">مشاهدة</option><option value="edit">تعديل</option></select></div>
+            <div>🎨 تصميم: <select name="perm_design" style="padding:4px;"><option value="">بدون</option><option value="view">مشاهدة</option><option value="edit">تعديل</option></select></div>
+            <div>✂️ قص: <select name="perm_cutting" style="padding:4px;"><option value="">بدون</option><option value="view">مشاهدة</option><option value="edit">تعديل</option></select></div>
+            <div>🔍 فرز: <select name="perm_qc" style="padding:4px;"><option value="">بدون</option><option value="view">مشاهدة</option><option value="edit">تعديل</option></select></div>
         </div>
-
-        <button type="submit" class="apple-btn">حفظ وتأكيد الحساب</button>
+        <button type="submit" class="apple-btn" style="width: 100%; background: #0071e3;">تأكيد وإنشاء الحساب</button>
     </form>
 </div>
 

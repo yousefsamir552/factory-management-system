@@ -41,9 +41,16 @@
         <h3 style="margin-top: 0;">إضافة موديل جديد</h3>
         <form action="/design/add" method="POST" enctype="multipart/form-data">
             <input type="text" name="model_code" class="form-input" placeholder="كود الموديل (مثال: M-101)" required>
-            <input type="text" name="model_type" class="form-input" placeholder="نوع الموديل (تيشرت، بنطلون...)">
             <label style="font-size: 13px; color: #86868b;">صورة الموديل:</label>
             <input type="file" name="model_image" accept="image/*" class="form-input" required>
+
+            <select name="model_type" class="form-input" required>
+                <option value="أولادي">أولادي</option>
+                <option value="بناتي">بناتي</option>
+                <option value="رجالي">رجالي</option>
+                <option value="حريمي">حريمي</option>
+            </select>
+            <input type="text" name="sizes_selected" class="form-input" placeholder="المقاسات (مثال: S, M, L, XL)">
             
             <div style="display: flex; gap: 12px; margin-top: 16px;">
                 <button type="submit" class="apple-btn" style="flex: 1;">حفظ</button>

@@ -17,6 +17,7 @@ class User(db.Model):
     permissions = db.Column(db.Text, nullable=True)
     last_active = db.Column(db.DateTime, nullable=True)
     is_deleted = db.Column(db.Boolean, default=False)
+    is_active = db.Column(db.Boolean, default=True)
 
 class Supplier(db.Model):
     id = db.Column(db.Integer, primary_key=True)

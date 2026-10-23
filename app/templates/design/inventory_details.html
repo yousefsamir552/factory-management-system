@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block content %}
+<div style="margin-bottom: 16px;"><a href="/design/inventory" style="color: #0071e3; text-decoration: none; font-weight: 600;">← العودة للجرد</a></div>
+<div style="background: white; border-radius: 16px; padding: 24px; border: 1px solid #f1f1f4; display: flex; gap: 24px;">
+    <img src="{{ model.image_url }}" style="width: 180px; height: 180px; border-radius: 12px; object-fit: cover;">
+    <div>
+        <h2 style="margin: 0 0 8px 0;">موديل: {{ model.model_code }}</h2>
+        <p style="color: #86868b;">النوع: {{ model.model_type or 'غير محدد' }} | الحالة: {{ model.status }}</p>
+        <p><strong>المقاسات:</strong> {{ model.sizes_selected or '---' }}</p>
+        <p><strong>ماركر أساسي:</strong> {{ model.main_marker_url or '---' }} | <strong>ماركر طباعة:</strong> {{ model.print_marker_url or '---' }}</p>
+        <p><strong>ملاحظات:</strong> {{ model.notes_shirt or '---' }}</p>
+    </div>
+</div>
+{% endblock %}
