@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% block content %}
+<style>
+    .apple-card { background: white; border-radius: 16px; padding: 20px; border: 1px solid #f1f1f4; box-shadow: 0 4px 12px rgba(0,0,0,0.03); margin-bottom: 20px; }
+    .form-input { width: 100%; padding: 10px; border: 1px solid #d2d2d7; border-radius: 10px; font-family: inherit; font-size: 14px; box-sizing: border-box; margin-bottom: 12px; }
+    .apple-btn { padding: 10px 20px; border: none; border-radius: 12px; cursor: pointer; font-weight: 600; font-size: 14px; background: #0071e3; color: white; width: 100%; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border-bottom: 1px solid #f1f1f4; padding: 10px; text-align: right; font-size: 14px; }
+    th { background: #f5f5f7; color: #86868b; }
+</style>
+
+<div style="margin-bottom: 16px;"><a href="/cutting" style="color: #0071e3; text-decoration: none; font-weight: 600;">← العودة لقائمة القص</a></div>
+
+<div style="display: flex; gap: 20px; flex-wrap: wrap;">
+    <div style="flex: 1; min-width: 350px;" class="apple-card">
+        <h3 style="margin-top: 0; color: #ff3b30;">📝 تسجيل تسجيلة القص</h3>
+        <form action="/cutting/model/{{ model.id }}/add_record" method="POST">
+            <select name="color_name" class="form-input" required>
+                <option value="">-- اختر القطعة واللون --</option>
+                {% for req in model.requirements %}
+                    <option value="{{ req.color.color_code }} ({{ req.part_name }})">{{ req.color.color_code }} - {{ req.part_name }}</option>
+                {% endfor %}
+            </select>
+            <input type="text" name="cutter_name" class="form-input" placeholder="اسم المقصدار" required>
+            <div style="display: flex; gap: 10px;">
+                <input type="number" name="layers_count" class="form-input" placeholder="عدد الرقات" required>
+                <input type="number" step="0.01" name="layer_weight" class="form-input" placeholder="وزن الراق (كجم)" required>
+            </div>
+            <input type="number" name="pieces_count" class="form-input" placeholder="عدد القطع الناتج" required>
+            <input type="text" name="shade_degree" class="form-input" placeholder="درجة الصبغة (اختياري)">
+            <button type="submit" class="apple-btn">+ إضافة راق</button>
+        </form>
+    </div>
+
+    <div style="flex: 1; min-width: 350px;" class="apple-card">
+        <h3 style="margin-top: 0;">سجل القص للموديل: {{ model.model_code }}</h3>
+        <table>
+            <tr><th>اللون/القطعة</th><th>المقصدار</th><th>الرقات</th><th>القطع</th></tr>
+            {% for rec in model.cutting_records %}
+            <tr>
+                <td>{{ rec.color_name }}</td>
+                <td>{{ rec.cutter_name }}</td>
+                <td>{{ rec.layers_count }}</td>
+                <td><strong>{{ rec.pieces_count }}</strong></td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" style="color: #86868b; text-align: center;">لم يتم تسجيل أرقام قص بعد.</td></tr>
+            {% endfor %}
+        </table>
+
+        <form action="/cutting/model/{{ model.id }}/finish" method="POST" style="margin-top: 24px;" onsubmit="return confirm('تأكيد إنهاء القص والتحويل للفرز؟');">
+            <button type="submit" class="apple-btn" style="background: #34c759;">✔️ إنهاء القص والتحويل للفرز</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

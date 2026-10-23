@@ -1,0 +1,168 @@
+{% extends 'base.html' %}
+{% block content %}
+<style>
+    /* أسلوب تصميم أبل النظيف */
+    .apple-card { background: #ffffff; border-radius: 16px; padding: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.04); border: 1px solid #f1f1f4; margin-bottom: 24px; }
+    .fabric-tabs { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; align-items: center; }
+    .fabric-tab { padding: 10px 20px; background: #f5f5f7; border-radius: 20px; cursor: pointer; text-decoration: none; color: #1d1d1f; font-weight: 600; font-size: 14px; transition: all 0.2s ease; }
+    .fabric-tab.active, .fabric-tab:hover { background: #0071e3; color: white; }
+    .colors-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; }
+    .color-card { background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.04); border: 1px solid #f1f1f4; transition: transform 0.2s; }
+    .color-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
+    .color-box { height: 120px; width: 100%; display: flex; align-items: center; justify-content: center; }
+    .color-details { padding: 16px; text-align: center; }
+    
+    /* النوافذ المنبثقة */
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); z-index: 1000; justify-content: center; align-items: center; }
+    .modal-box { background: white; padding: 32px; border-radius: 20px; width: 100%; max-width: 480px; box-shadow: 0 20px 40px rgba(0,0,0,0.15); animation: scaleIn 0.3s ease; }
+    @keyframes scaleIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    
+    .form-input { width: 100%; padding: 12px 16px; border: 1px solid #d2d2d7; border-radius: 12px; margin-bottom: 16px; font-family: inherit; font-size: 15px; outline: none; box-sizing: border-box; transition: border 0.2s; }
+    .form-input:focus { border-color: #0071e3; }
+    .apple-btn { padding: 12px 24px; border: none; border-radius: 20px; cursor: pointer; font-weight: 600; font-size: 15px; transition: 0.2s; color: white; display: inline-block; text-decoration: none; text-align: center; }
+    .btn-blue { background: #0071e3; } .btn-blue:hover { background: #0077ed; }
+    .btn-gray { background: #e8e8ed; color: #1d1d1f; } .btn-gray:hover { background: #d2d2d7; }
+</style>
+
+<!-- إضافة رابط المخزن في القائمة العلوية -->
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const navLinks = document.querySelector('.nav-links');
+        if(navLinks && !navLinks.innerHTML.includes('المخزن')) {
+            navLinks.innerHTML += '<a href="/warehouse">📦 المخزن</a>';
+        }
+    });
+</script>
+
+<div class="fabric-tabs">
+    {% for f in fabrics %}
+        <a href="?fabric_id={{ f.id }}" class="fabric-tab {% if selected_fabric and selected_fabric.id == f.id %}active{% endif %}">{{ f.name }}</a>
+    {% endfor %}
+    <div style="flex-grow: 1;"></div>
+    <a href="/warehouse/print_inventory" target="_blank" class="apple-btn btn-gray" style="margin-left: 10px;">🖨️ طباعة الجرد</a>
+    <button class="apple-btn btn-blue" onclick="openModal('addModal')">+ استلام قماش</button>
+</div>
+
+{% if selected_fabric %}
+<div class="apple-card" style="display: flex; gap: 24px; align-items: center;">
+    {% if selected_fabric.image_url %}
+        <img src="{{ selected_fabric.image_url }}" alt="صورة القماش" style="width: 140px; height: 140px; border-radius: 16px; object-fit: cover;">
+    {% else %}
+        <div style="width: 140px; height: 140px; border-radius: 16px; background: #f5f5f7; display: flex; align-items: center; justify-content: center; color: #86868b;">بدون صورة</div>
+    {% endif %}
+
+    <div>
+        <h2 style="margin: 0 0 8px 0; color: #1d1d1f;">{{ selected_fabric.name }}</h2>
+        <p style="color: #86868b; margin: 0 0 12px 0;">{{ selected_fabric.description }}</p>
+        <div style="font-size: 18px; font-weight: 600; color: #1d1d1f; margin-bottom: 16px;">إجمالي الرصيد: {{ selected_fabric.colors | sum(attribute='quantity') }} {{ selected_fabric.unit }}</div>
+        <button class="apple-btn btn-gray" onclick="openModal('editFabricModal')" style="padding: 8px 16px; font-size: 13px;">📷 تعديل الصورة</button>
+    </div>
+</div>
+
+<div class="colors-grid">
+    {% for color in selected_fabric.colors %}
+    <div class="color-card">
+        <div class="color-box" style="background-color: {{ color.hex_code if color.hex_code else '#f5f5f7' }};"></div>
+        <div class="color-details">
+            <h4 style="margin: 0 0 8px 0; color: #1d1d1f;">{{ color.color_code }} <span style="font-weight: normal; color: #86868b;">{{ color.color_name or '' }}</span></h4>
+            <div style="font-size: 22px; font-weight: 700; margin-bottom: 4px;">{{ color.quantity }} <span style="font-size: 13px; color: #86868b;">{{ selected_fabric.unit }}</span></div>
+            <div style="font-size: 12px; font-weight: 600; color: #e30000; margin-bottom: 16px; background: #fcebeb; padding: 4px 8px; border-radius: 8px; display: inline-block;">متاح للتصميم: {{ color.quantity - color.reserved_quantity }}</div>
+            <button class="apple-btn btn-gray" style="width: 100%; border-radius: 12px;" onclick="openTransactionModal({{ color.id }}, '{{ color.color_code }}')">صرف / إضافة</button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- نافذة استلام قماش -->
+<div id="addModal" class="modal-overlay">
+    <div class="modal-box">
+        <h3 style="margin-top: 0;">استلام قماش جديد</h3>
+        <form action="/warehouse/add" method="POST" enctype="multipart/form-data">
+            <select name="fabric_id" id="fabricSelect" class="form-input" onchange="toggleNewFabricFields()">
+                <option value="">-- خامة جديدة --</option>
+                {% for f in fabrics %}
+                    <option value="{{ f.id }}" {% if selected_fabric and f.id == selected_fabric.id %}selected{% endif %}>{{ f.name }}</option>
+                {% endfor %}
+            </select>
+
+            <!-- القسم السفلي يظهر فقط عند اختيار "خامة جديدة" -->
+            <div id="newFabricFields" style="display: none; background: #f5f5f7; padding: 16px; border-radius: 12px; margin-bottom: 16px;">
+                <input type="text" name="new_fabric_name" class="form-input" placeholder="اسم الخامة الجديدة">
+                <select name="unit" class="form-input">
+                    <option value="توب">توب</option>
+                    <option value="كيلو">كيلو</option>
+                    <option value="متر">متر</option>
+                </select>
+                <label style="font-size: 13px; color: #86868b;">صورة الخامة:</label>
+                <input type="file" name="fabric_image" accept="image/*" class="form-input">
+            </div>
+
+            <div style="display: flex; gap: 12px;">
+                <input type="text" name="color_code" class="form-input" placeholder="كود اللون (إجباري)" required>
+                <input type="text" name="color_name" class="form-input" placeholder="اسم اللون">
+            </div>
+            <input type="number" step="0.01" name="quantity" class="form-input" required placeholder="الكمية المستلمة">
+            
+            <div style="display: flex; gap: 12px; margin-top: 16px;">
+                <button type="submit" class="apple-btn btn-blue" style="flex: 1;">حفظ</button>
+                <button type="button" class="apple-btn btn-gray" style="flex: 1;" onclick="closeModal('addModal')">إلغاء</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- نافذة المعاملات -->
+<div id="transactionModal" class="modal-overlay">
+    <div class="modal-box">
+        <h3 style="margin-top: 0;">تحديث الكمية: <span id="transCode"></span></h3>
+        <form action="/warehouse/transaction" method="POST">
+            <input type="hidden" name="color_id" id="transColorId">
+            <select name="operation" class="form-input">
+                <option value="deduct">صرف للمقص / استعواض (-)</option>
+                <option value="add">إضافة / مرتجع (+)</option>
+            </select>
+            <input type="number" step="0.01" name="amount" class="form-input" required placeholder="الكمية">
+            <input type="text" name="notes" class="form-input" placeholder="ملاحظات / السبب">
+            
+            <div style="display: flex; gap: 12px; margin-top: 16px;">
+                <button type="submit" class="apple-btn btn-blue" style="flex: 1;">تنفيذ</button>
+                <button type="button" class="apple-btn btn-gray" style="flex: 1;" onclick="closeModal('transactionModal')">إلغاء</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- نافذة تعديل الصورة -->
+{% if selected_fabric %}
+<div id="editFabricModal" class="modal-overlay">
+    <div class="modal-box">
+        <h3 style="margin-top: 0;">تعديل الصورة</h3>
+        <form action="/warehouse/edit_fabric" method="POST" enctype="multipart/form-data">
+            <input type="hidden" name="fabric_id" value="{{ selected_fabric.id }}">
+            <input type="file" name="fabric_image" accept="image/*" class="form-input" required>
+            <div style="display: flex; gap: 12px;">
+                <button type="submit" class="apple-btn btn-blue" style="flex: 1;">تحديث</button>
+                <button type="button" class="apple-btn btn-gray" style="flex: 1;" onclick="closeModal('editFabricModal')">إلغاء</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+<script>
+    function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+    function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+    function openTransactionModal(colorId, colorCode) {
+        document.getElementById('transColorId').value = colorId;
+        document.getElementById('transCode').innerText = colorCode;
+        openModal('transactionModal');
+    }
+    function toggleNewFabricFields() {
+        var select = document.getElementById('fabricSelect');
+        document.getElementById('newFabricFields').style.display = (select.value === "") ? "block" : "none";
+    }
+    // تفعيل فحص القسم السفلي عند التحميل
+    document.addEventListener("DOMContentLoaded", toggleNewFabricFields);
+</script>
+{% endblock %}

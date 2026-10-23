@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block content %}
+<style>
+    .qc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+    .qc-card { background: white; border-radius: 16px; overflow: hidden; border: 1px solid #f1f1f4; box-shadow: 0 4px 12px rgba(0,0,0,0.04); }
+    .qc-image { width: 100%; height: 220px; object-fit: cover; background: #f5f5f7; }
+    .qc-info { padding: 16px; }
+    .apple-btn { padding: 10px 16px; border: none; border-radius: 12px; cursor: pointer; font-weight: 600; font-size: 14px; background: #af52de; color: white; text-decoration: none; display: block; text-align: center; }
+</style>
+
+<h2 style="margin-bottom: 8px;">🔍 قسم الفرز والكنترول</h2>
+<p style="color: #86868b; margin-bottom: 24px;">الموديلات الناتجة من قسم القص والمطلوب عدها وفرز الهالك منها.</p>
+
+<div class="qc-grid">
+    {% for model in models %}
+    <div class="qc-card">
+        <img src="{{ model.image_url }}" class="qc-image">
+        <div class="qc-info">
+            <h3 style="margin: 0 0 8px 0;">موديل: {{ model.model_code }}</h3>
+            <a href="/qc/model/{{ model.id }}" class="apple-btn">بدء العد والفرز</a>
+        </div>
+    </div>
+    {% else %}
+    <p style="color: #86868b;">لا توجد موديلات في انتظار الفرز حالياً.</p>
+    {% endfor %}
+</div>
+{% endblock %}

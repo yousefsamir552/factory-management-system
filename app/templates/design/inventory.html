@@ -1,0 +1,108 @@
+{% extends 'base.html' %}
+{% block content %}
+<style>
+    .search-card { background: white; border-radius: 16px; padding: 20px; border: 1px solid #f1f1f4; margin-bottom: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.02); }
+    .search-grid { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .form-input { flex: 1; min-width: 200px; padding: 12px 16px; border: 1px solid #d2d2d7; border-radius: 12px; font-family: inherit; font-size: 14px; outline: none; }
+    .apple-btn { padding: 12px 24px; border: none; border-radius: 12px; cursor: pointer; font-weight: 600; font-size: 14px; background: #0071e3; color: white; text-decoration: none; text-align: center; }
+
+    .models-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; }
+    .model-card { background: white; border-radius: 18px; border: 1px solid #f1f1f4; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.03); transition: transform 0.2s; }
+    .model-card:hover { transform: translateY(-4px); }
+    .model-header { display: flex; gap: 16px; padding: 16px; border-bottom: 1px solid #f5f5f7; }
+    .model-img { width: 90px; height: 90px; border-radius: 12px; object-fit: cover; background: #f5f5f7; }
+    .badge { padding: 4px 10px; border-radius: 10px; font-size: 11px; font-weight: 600; display: inline-block; margin-top: 4px; }
+    .status-design { background: #fef08a; color: #854d0e; }
+    .status-cut { background: #ff3b30; color: white; }
+    .status-qc { background: #af52de; color: white; }
+
+    /* الشريط الزمني */
+    .timeline { padding: 16px; background: #fafafa; border-top: 1px solid #f5f5f7; }
+    .timeline-title { font-size: 12px; font-weight: 700; color: #86868b; margin-bottom: 12px; }
+    .timeline-steps { display: flex; justify-content: space-between; position: relative; }
+    .timeline-step { flex: 1; text-align: center; font-size: 11px; color: #86868b; position: relative; }
+    .timeline-step.active { color: #0071e3; font-weight: 700; }
+    .step-dot { width: 10px; height: 10px; border-radius: 50%; background: #d2d2d7; margin: 0 auto 6px; }
+    .timeline-step.active .step-dot { background: #0071e3; box-shadow: 0 0 0 3px rgba(0,113,227,0.2); }
+</style>
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+    <div>
+        <h2 style="margin: 0 0 4px 0; font-weight: 700;">📂 جرد وتتبع الموديلات</h2>
+        <p style="color: #86868b; margin: 0;">بحث شامل وتتبع حركة الموديلات عبر مراحل الإنتاج بالكامل.</p>
+    </div>
+    <a href="/design" class="apple-btn" style="background: #e8e8ed; color: #1d1d1f;">🎨 قسم التصميم الرئيسي</a>
+</div>
+
+<!-- شريط البحث والفلترة -->
+<div class="search-card">
+    <form method="GET" action="/design/inventory" class="search-grid">
+        <input type="text" name="q" value="{{ search_query }}" class="form-input" placeholder="🔍 ابحث بكود الموديل أو النوع (مثال: M-101)...">
+        <select name="status" class="form-input" style="flex: 0.5;">
+            <option value="">-- جميع الحالات --</option>
+            <option value="تصميم" {% if status_filter == 'تصميم' %}selected{% endif %}>في التجهيز والتصميم</option>
+            <option value="في القص" {% if status_filter == 'في القص' %}selected{% endif %}>في القص</option>
+            <option value="فرز وكنترول" {% if status_filter == 'فرز وكنترول' %}selected{% endif %}>في الفرز والكنترول</option>
+        </select>
+        <button type="submit" class="apple-btn">بحث</button>
+        {% if search_query or status_filter %}
+            <a href="/design/inventory" class="apple-btn" style="background: #e8e8ed; color: #1d1d1f;">إلغاء البحث</a>
+        {% endif %}
+    </form>
+</div>
+
+<!-- عرض كروت الموديلات -->
+<div class="models-grid">
+    {% for model in models %}
+    <div class="model-card">
+        <div class="model-header">
+            <img src="{{ model.image_url }}" class="model-img">
+            <div>
+                <h3 style="margin: 0 0 4px 0; font-size: 16px;">كود: {{ model.model_code }}</h3>
+                <div style="font-size: 13px; color: #86868b;">النوع: {{ model.model_type or 'غير محدد' }}</div>
+                <span class="badge {% if model.status == 'في القص' %}status-cut{% elif model.status == 'فرز وكنترول' %}status-qc{% else %}status-design{% endif %}">
+                    {{ model.status }}
+                </span>
+            </div>
+        </div>
+
+        <div style="padding: 16px; font-size: 13px; color: #515154;">
+            <div style="margin-bottom: 6px;"><strong>الأقمشة المستخدمة:</strong> {{ model.requirements|length }} خامات</div>
+            <div><strong>تاريخ الإنشاء:</strong> {{ model.created_at.strftime('%Y-%m-%d') if model.created_at else '---' }}</div>
+        </div>
+
+        <!-- الشريط الزمني للموديل -->
+        <div class="timeline">
+            <div class="timeline-title">تتبع رحلة الموديل:</div>
+            <div class="timeline-steps">
+                <div class="timeline-step active">
+                    <div class="step-dot"></div>
+                    إنشاء
+                    <div style="font-size: 9px; color: #a1a1a6;">{{ model.created_at.strftime('%m/%d') if model.created_at else '' }}</div>
+                </div>
+                <div class="timeline-step {% if model.colored_at %}active{% endif %}">
+                    <div class="step-dot"></div>
+                    تلوين
+                    <div style="font-size: 9px; color: #a1a1a6;">{{ model.colored_at.strftime('%m/%d') if model.colored_at else '' }}</div>
+                </div>
+                <div class="timeline-step {% if model.cut_at %}active{% endif %}">
+                    <div class="step-dot"></div>
+                    القص
+                    <div style="font-size: 9px; color: #a1a1a6;">{{ model.cut_at.strftime('%m/%d') if model.cut_at else '' }}</div>
+                </div>
+                <div class="timeline-step {% if model.status == 'فرز وكنترول' or model.status == 'جاهز للطباعة / التجميع' %}active{% endif %}">
+                    <div class="step-dot"></div>
+                    الفرز
+                </div>
+            </div>
+        </div>
+
+        <div style="padding: 12px 16px; background: white; text-align: center;">
+            <a href="/design/model/{{ model.id }}" class="apple-btn" style="display: block; background: #1d1d1f; font-size: 13px; padding: 8px;">عرض تفاصيل الموديل بالكامل</a>
+        </div>
+    </div>
+    {% else %}
+    <p style="color: #86868b; grid-column: 1 / -1; text-align: center; padding: 40px;">لا توجد موديلات مطابقة لنتائج البحث.</p>
+    {% endfor %}
+</div>
+{% endblock %}

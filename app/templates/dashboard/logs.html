@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+{% block content %}
+<style>
+    .filter-card { background: white; border-radius: 16px; padding: 20px; border: 1px solid #f1f1f4; margin-bottom: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.02); }
+    .filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; align-items: flex-end; }
+    .form-input { width: 100%; padding: 10px; border: 1px solid #d2d2d7; border-radius: 10px; font-family: inherit; font-size: 13px; box-sizing: border-box; }
+    .apple-btn { padding: 10px 18px; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; font-size: 13px; background: #0071e3; color: white; text-decoration: none; text-align: center; }
+    
+    .log-table { width: 100%; border-collapse: collapse; background: white; border-radius: 16px; overflow: hidden; border: 1px solid #f1f1f4; font-size: 13px; }
+    .log-table th, .log-table td { padding: 12px 16px; text-align: right; border-bottom: 1px solid #f5f5f7; }
+    .log-table th { background: #f5f5f7; color: #86868b; font-weight: 600; }
+    .badge { padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; background: #e8e8ed; color: #1d1d1f; }
+</style>
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <h2 style="margin: 0;">🕵️ سجل المراقبة والحركات (Audit Logs)</h2>
+    <a href="/dashboard" class="apple-btn" style="background: #8e8e93;">← العودة للرئيسية</a>
+</div>
+
+<!-- شريط الفلاتر -->
+<div class="filter-card">
+    <form method="GET" action="/dashboard/logs" class="filter-grid">
+        <div>
+            <label style="font-size: 12px; color: #86868b;">المستخدم:</label>
+            <select name="user_id" class="form-input">
+                <option value="">-- الكل --</option>
+                {% for u in users %}
+                    <option value="{{ u.id }}" {% if request.args.get('user_id')|int == u.id %}selected{% endif %}>{{ u.real_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div>
+            <label style="font-size: 12px; color: #86868b;">القسم / نوع الحركة:</label>
+            <select name="action" class="form-input">
+                <option value="">-- كل الأقسام --</option>
+                <option value="المخزن" {% if request.args.get('action') == 'المخزن' %}selected{% endif %}>المخزن والقماش</option>
+                <option value="موديل" {% if request.args.get('action') == 'موديل' %}selected{% endif %}>التصميم والموديلات</option>
+                <option value="قص" {% if request.args.get('action') == 'قص' %}selected{% endif %}>القص</option>
+                <option value="فرز" {% if request.args.get('action') == 'فرز' %}selected{% endif %}>الفرز والكنترول</option>
+                <option value="دخول" {% if request.args.get('action') == 'دخول' %}selected{% endif %}>تسجيل الدخول</option>
+            </select>
+        </div>
+
+        <div>
+            <label style="font-size: 12px; color: #86868b;">من تاريخ:</label>
+            <input type="date" name="date_from" value="{{ request.args.get('date_from', '') }}" class="form-input">
+        </div>
+
+        <div>
+            <label style="font-size: 12px; color: #86868b;">إلى تاريخ:</label>
+            <input type="date" name="date_to" value="{{ request.args.get('date_to', '') }}" class="form-input">
+        </div>
+
+        <div style="display: flex; gap: 8px;">
+            <button type="submit" class="apple-btn" style="flex: 1;">تطبيق الفلتر</button>
+            <a href="/dashboard/logs" class="apple-btn" style="background: #e8e8ed; color: #1d1d1f; flex: 1;">إلغاء</a>
+        </div>
+    </form>
+</div>
+
+<!-- جدول الحركة -->
+<table class="log-table">
+    <thead>
+        <tr>
+            <th>التاريخ والوقت</th>
+            <th>المستخدم</th>
+            <th>نوع الإجراء</th>
+            <th>التفاصيل</th>
+            <th>IP الجهاز</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for log in logs %}
+        <tr>
+            <td dir="ltr" style="text-align: right; color: #86868b;">{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+            <td><strong>{{ log.user.real_name if log.user else 'غير معروف' }}</strong></td>
+            <td><span class="badge">{{ log.action }}</span></td>
+            <td>{{ log.details }}</td>
+            <td dir="ltr" style="text-align: right; font-size: 11px; color: #86868b;">{{ log.ip_address }}</td>
+        </tr>
+        {% else %}
+        <tr>
+            <td colspan="5" style="text-align: center; color: #86868b; padding: 24px;">لا توجد سجلات مطابقة للفلاتر المحددة.</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

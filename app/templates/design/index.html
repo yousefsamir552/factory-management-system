@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% block content %}
+<style>
+    .apple-card { background: white; border-radius: 16px; padding: 20px; border: 1px solid #f1f1f4; box-shadow: 0 4px 12px rgba(0,0,0,0.03); }
+    .header-actions { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+    .models-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; }
+    .model-card { background: white; border-radius: 16px; overflow: hidden; border: 1px solid #f1f1f4; box-shadow: 0 4px 12px rgba(0,0,0,0.04); transition: transform 0.2s; }
+    .model-card:hover { transform: translateY(-4px); }
+    .model-image { width: 100%; height: 240px; object-fit: cover; background: #f5f5f7; }
+    .model-details { padding: 16px; text-align: center; }
+    .apple-btn { padding: 10px 20px; border: none; border-radius: 20px; cursor: pointer; font-weight: 600; font-size: 14px; background: #0071e3; color: white; text-decoration: none; display: inline-block; }
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); z-index: 1000; justify-content: center; align-items: center; }
+    .modal-box { background: white; padding: 28px; border-radius: 20px; width: 100%; max-width: 420px; }
+    .form-input { width: 100%; padding: 12px; border: 1px solid #d2d2d7; border-radius: 12px; margin-bottom: 16px; font-family: inherit; font-size: 14px; box-sizing: border-box; }
+</style>
+
+<div class="header-actions">
+    <h2 style="margin: 0; font-weight: 700;">🎨 قسم التصميم والموديلات</h2>
+    <button class="apple-btn" onclick="document.getElementById('addModelModal').style.display='flex'">+ إضافة موديل جديد</button>
+</div>
+
+<div class="models-grid">
+    {% for model in models %}
+    <div class="model-card">
+        <img src="{{ model.image_url }}" class="model-image">
+        <div class="model-details">
+            <h3 style="margin: 0 0 8px 0; font-size: 18px;">{{ model.model_code }}</h3>
+            <span style="background: #fef08a; color: #854d0e; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600;">{{ model.status }}</span>
+            <div style="margin-top: 16px;">
+                <a href="/design/model/{{ model.id }}" class="apple-btn" style="width: 100%; box-sizing: border-box; background: #1d1d1f;">التفاصيل وتلوين الموديل</a>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <p style="color: #86868b;">لا توجد موديلات حالياً.</p>
+    {% endfor %}
+</div>
+
+<div id="addModelModal" class="modal-overlay">
+    <div class="modal-box">
+        <h3 style="margin-top: 0;">إضافة موديل جديد</h3>
+        <form action="/design/add" method="POST" enctype="multipart/form-data">
+            <input type="text" name="model_code" class="form-input" placeholder="كود الموديل (مثال: M-101)" required>
+            <input type="text" name="model_type" class="form-input" placeholder="نوع الموديل (تيشرت، بنطلون...)">
+            <label style="font-size: 13px; color: #86868b;">صورة الموديل:</label>
+            <input type="file" name="model_image" accept="image/*" class="form-input" required>
+            
+            <div style="display: flex; gap: 12px; margin-top: 16px;">
+                <button type="submit" class="apple-btn" style="flex: 1;">حفظ</button>
+                <button type="button" class="apple-btn" style="flex: 1; background: #e8e8ed; color: #1d1d1f;" onclick="document.getElementById('addModelModal').style.display='none'">إلغاء</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

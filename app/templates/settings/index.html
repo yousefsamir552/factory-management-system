@@ -1,0 +1,125 @@
+{% extends 'base.html' %}
+{% block content %}
+<style>
+    .settings-grid { 
+        display: grid; 
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); 
+        gap: 24px; 
+    }
+    .settings-card { 
+        background: white; 
+        padding: 24px; 
+        border-radius: 18px; 
+        border: 1px solid #f1f1f4; 
+        box-shadow: 0 4px 16px rgba(0,0,0,0.03); 
+    }
+    .settings-card h3 { 
+        margin-top: 0; 
+        color: #1d1d1f; 
+        font-size: 18px; 
+        margin-bottom: 16px; 
+        display: flex; 
+        align-items: center; 
+        gap: 8px; 
+    }
+    .form-input { 
+        width: 100%; 
+        padding: 10px 14px; 
+        border: 1px solid #d2d2d7; 
+        border-radius: 12px; 
+        font-family: inherit; 
+        font-size: 14px; 
+        box-sizing: border-box; 
+        outline: none; 
+        margin-bottom: 10px; 
+    }
+    .form-input:focus { 
+        border-color: #0071e3; 
+    }
+    .apple-btn { 
+        padding: 10px 18px; 
+        border: none; 
+        border-radius: 12px; 
+        cursor: pointer; 
+        font-weight: 600; 
+        font-size: 14px; 
+        background: #0071e3; 
+        color: white; 
+        width: 100%; 
+    }
+    .settings-list { 
+        list-style: none; 
+        padding: 0; 
+        margin: 16px 0 0 0; 
+        max-height: 220px; 
+        overflow-y: auto; 
+    }
+    .settings-list li { 
+        padding: 10px; 
+        border-bottom: 1px solid #f5f5f7; 
+        font-size: 14px; 
+        display: flex; 
+        justify-content: space-between; 
+        color: #1d1d1f; 
+    }
+</style>
+
+<div style="margin-bottom: 24px;">
+    <h2 style="margin: 0 0 6px 0; font-weight: 700;">⚙️ تعاريف النظام الأساسية</h2>
+    <p style="color: #86868b; margin: 0;">أضف الموردين، المقاسات، والمطابع المعتمدة في المصنع لتظهر في باقي الأقسام تلقائياً.</p>
+</div>
+
+<div class="settings-grid">
+    <!-- كارت الموردين -->
+    <div class="settings-card">
+        <h3>🏢 الموردين</h3>
+        <form action="/settings/add_supplier" method="POST">
+            <input type="text" name="name" class="form-input" placeholder="اسم المورد" required>
+            <input type="text" name="phone" class="form-input" placeholder="رقم التليفون (اختياري)">
+            <button type="submit" class="apple-btn">إضافة مورد</button>
+        </form>
+        <ul class="settings-list">
+            {% for s in suppliers %}
+                <li>
+                    <strong>{{ s.name }}</strong>
+                    <span style="color: #86868b; font-size: 12px;">{{ s.phone or '' }}</span>
+                </li>
+            {% else %}
+                <li style="color: #86868b; justify-content: center;">لا يوجد موردين مضافين</li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <!-- كارت المقاسات -->
+    <div class="settings-card">
+        <h3>📏 المقاسات</h3>
+        <form action="/settings/add_size" method="POST">
+            <input type="text" name="name" class="form-input" placeholder="مثال: M, L, XL, 4, 6" required>
+            <button type="submit" class="apple-btn">إضافة مقاس</button>
+        </form>
+        <ul class="settings-list">
+            {% for size in sizes %}
+                <li><strong>{{ size.name }}</strong></li>
+            {% else %}
+                <li style="color: #86868b; justify-content: center;">لا توجد مقاسات مضافة</li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <!-- كارت المطابع -->
+    <div class="settings-card">
+        <h3>🖨️ المطابع / التطريز</h3>
+        <form action="/settings/add_printshop" method="POST">
+            <input type="text" name="name" class="form-input" placeholder="اسم المطبعة" required>
+            <button type="submit" class="apple-btn">إضافة مطبعة</button>
+        </form>
+        <ul class="settings-list">
+            {% for shop in printshops %}
+                <li><strong>{{ shop.name }}</strong></li>
+            {% else %}
+                <li style="color: #86868b; justify-content: center;">لا توجد مطابع مضافة</li>
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>جرد المخزن</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; color: #1d1d1f; }
+        .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #1d1d1f; padding-bottom: 15px; }
+        .date { font-size: 14px; color: #86868b; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 14px; }
+        th, td { border: 1px solid #d2d2d7; padding: 10px; text-align: right; }
+        th { background-color: #f5f5f7; font-weight: 600; }
+        .fabric-title { background-color: #e8e8ed; font-weight: 700; text-align: center; font-size: 16px; }
+        .print-btn { display: block; width: 200px; margin: 20px auto; padding: 12px; text-align: center; background: #0071e3; color: white; text-decoration: none; border-radius: 20px; cursor: pointer; border: none; font-size: 15px; font-weight: 600; }
+        
+        @media print {
+            .print-btn { display: none; }
+            body { margin: 0; }
+            @page { margin: 1cm; }
+        }
+    </style>
+</head>
+<body>
+
+    <button class="print-btn" onclick="window.print()">🖨️ طباعة الجرد الآن</button>
+
+    <div class="header">
+        <h1>🏭 تقرير جرد مخزن القماش والأنشطة</h1>
+        <p class="date">تاريخ الطباعة: <span id="currentDate"></span></p>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>كود اللون</th>
+                <th>اسم اللون</th>
+                <th>الرصيد الفعلي</th>
+                <th>الكمية المحجوزة</th>
+                <th>المتاح للتصميم</th>
+                <th>المورد</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for f in fabrics %}
+                <tr>
+                    <td colspan="6" class="fabric-title">خامة: {{ f.name }} (الوحدة: {{ f.unit }})</td>
+                </tr>
+                {% for c in f.colors %}
+                <tr>
+                    <td>
+                        <span style="display:inline-block; width:10px; height:10px; background:{{ c.hex_code or '#ccc' }}; border-radius:50%; margin-left:5px;"></span>
+                        {{ c.color_code }}
+                    </td>
+                    <td>{{ c.color_name or '---' }}</td>
+                    <td style="font-weight: bold;">{{ c.quantity }} {{ f.unit }}</td>
+                    <td style="color: #86868b;">{{ c.reserved_quantity }} {{ f.unit }}</td>
+                    <td style="color: #0071e3; font-weight: bold;">{{ c.quantity - c.reserved_quantity }} {{ f.unit }}</td>
+                    <td>{{ f.supplier.name if f.supplier else '---' }}</td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="6" style="text-align: center;">لا توجد خامات مسجلة في المخزن</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <script>
+        document.getElementById('currentDate').innerText = new Date().toLocaleDateString('ar-EG');
+    </script>
+</body>
+</html>

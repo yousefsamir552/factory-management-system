@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block content %}
+<style>
+    .apple-card { background: white; border-radius: 16px; padding: 20px; border: 1px solid #f1f1f4; box-shadow: 0 4px 12px rgba(0,0,0,0.03); margin-bottom: 20px; }
+    .apple-btn { padding: 12px 24px; border: none; border-radius: 12px; cursor: pointer; font-weight: 600; font-size: 14px; background: #af52de; color: white; width: 100%; }
+</style>
+
+<div style="margin-bottom: 16px;"><a href="/qc" style="color: #0071e3; text-decoration: none; font-weight: 600;">← العودة لقائمة الفرز</a></div>
+
+<div class="apple-card" style="display: flex; gap: 20px; align-items: center;">
+    <img src="{{ model.image_url }}" style="width: 120px; height: 120px; border-radius: 12px; object-fit: cover;">
+    <div>
+        <h2 style="margin: 0 0 6px 0;">فرز موديل: {{ model.model_code }}</h2>
+        <p style="color: #86868b; margin: 0;">جاهز للعد النهائي وتصفية القطع السليمة من الهالك.</p>
+    </div>
+</div>
+
+<div class="apple-card">
+    <form action="/qc/model/{{ model.id }}/finish" method="POST" onsubmit="return confirm('تأكيد إنهاء الفرز والتحويل للرحلة التالية؟');">
+        <button type="submit" class="apple-btn" style="background: #34c759;">✔️ إنهاء الفرز والاعتماد النهائي</button>
+    </form>
+</div>
+{% endblock %}

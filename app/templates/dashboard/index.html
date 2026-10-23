@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% block content %}
+<style>
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
+    .stat-card { background: white; padding: 20px; border-radius: 16px; text-align: center; border: 1px solid #f1f1f4; box-shadow: 0 4px 12px rgba(0,0,0,0.02); }
+    .stat-card h3 { margin: 0; color: #86868b; font-size: 15px; }
+    .stat-card .num { font-size: 32px; font-weight: 700; color: #1d1d1f; margin-top: 8px; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .form-group input, .form-group select { width: 100%; padding: 10px 14px; border: 1px solid #d2d2d7; border-radius: 12px; box-sizing: border-box; outline: none; font-family: inherit; font-size: 14px; }
+    .form-group input:focus, .form-group select:focus { border-color: #0071e3; }
+    .apple-btn { padding: 12px 20px; border: none; border-radius: 12px; cursor: pointer; font-weight: 600; font-size: 14px; background: #0071e3; color: white; width: 100%; transition: 0.2s; }
+</style>
+
+<div class="stats-grid">
+    <div class="stat-card"><h3>إجمالي الموديلات</h3><div class="num">{{ total_models }}</div></div>
+    <div class="stat-card"><h3>ألوان الخامات</h3><div class="num">{{ total_fabrics }}</div></div>
+    <div class="stat-card"><h3>المستخدمين المتصلين</h3><div class="num" style="color: #34c759;">{{ online_users|length }}</div></div>
+</div>
+
+<div style="display: flex; gap: 20px; flex-wrap: wrap;">
+    <div style="flex: 1; min-width: 300px; background: white; padding: 24px; border-radius: 16px; border: 1px solid #f1f1f4; box-shadow: 0 4px 12px rgba(0,0,0,0.02);">
+        <h3 style="margin-top: 0; color: #1d1d1f;">🟢 المتواجدون حالياً</h3>
+        <ul style="list-style: none; padding: 0; margin: 0;">
+            {% for u in online_users %}
+            <li style="padding: 10px 0; border-bottom: 1px solid #f5f5f7; font-size: 14px;">
+                <strong>{{ u.real_name }}</strong> <span style="color: #86868b; font-size: 12px;">({{ u.role }})</span>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    {% if session.get('role') == 'sudo' %}
+    <div style="flex: 2; min-width: 380px; background: white; padding: 24px; border-radius: 16px; border: 1px solid #f1f1f4; box-shadow: 0 4px 12px rgba(0,0,0,0.02);">
+        <h3 style="margin-top: 0; color: #1d1d1f;">➕ إضافة مستخدم جديد</h3>
+        <form action="/dashboard/add_user" method="POST">
+            <div class="form-grid">
+                <div class="form-group"><input type="text" name="real_name" placeholder="الاسم الحقيقي" required></div>
+                <div class="form-group"><input type="text" name="username" placeholder="اسم المستخدم" required></div>
+                <div class="form-group"><input type="password" name="password" placeholder="كلمة المرور" required></div>
+                <div class="form-group">
+                    <select name="role" id="roleSelect" onchange="togglePerms()" required>
+                        <option value="staff">موظف / مدير (Staff)</option>
+                        <option value="owner">مالك (Owner - مشاهدة فقط)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="permissionsBox" style="margin-top: 14px; padding: 14px; background: #f5f5f7; border-radius: 12px; font-size: 13px;">
+                <strong>صلاحيات الموظف (الأقسام المسموحة):</strong><br><br>
+                <label><input type="checkbox" name="permissions" value="warehouse"> المخزن</label> &nbsp;&nbsp;
+                <label><input type="checkbox" name="permissions" value="design"> التصميم</label> &nbsp;&nbsp;
+                <label><input type="checkbox" name="permissions" value="cutting"> القص</label> &nbsp;&nbsp;
+                <label><input type="checkbox" name="permissions" value="qc"> الفرز</label>
+            </div>
+
+            <button type="submit" class="apple-btn" style="margin-top: 16px;">حفظ المستخدم</button>
+        </form>
+    </div>
+    {% endif %}
+</div>
+
+<!-- زر المراقبة المضاف في أسفل الصفحة -->
+{% if session.get('role') in ['sudo', 'owner'] %}
+<div style="margin-top: 24px;">
+    <a href="/dashboard/logs" class="apple-btn" style="background: #1d1d1f; display: block; text-align: center; text-decoration: none; padding: 16px; font-size: 15px;">
+        🕵️ فتح سجل كاميرات المراقبة (Audit Logs)
+    </a>
+</div>
+{% endif %}
+
+<script>
+    function togglePerms() {
+        document.getElementById('permissionsBox').style.display = document.getElementById('roleSelect').value === 'staff' ? 'block' : 'none';
+    }
+</script>
+{% endblock %}
